@@ -44,6 +44,10 @@ GARDEN_STATE = Path(os.environ.get("GARDEN_STATE") or _STATE_HOME / "hestia" / "
 # back-fills GDD from the archive, and already-open windows re-mark silently.
 PEST_STATE = Path(os.environ.get("PEST_STATE") or DATA_DIR / "pest_state.json")
 PEST_DATA = Path(os.environ.get("PEST_DATA") or DATA_DIR / "pest-companions.json")
+# Watering positions: name, source, sprinkler, one entry per stake in the ground. The NFC
+# stake tags carry a slug of the name instead of all three fields, because an NTAG213 cannot
+# hold the long form, so this file is what turns a scanned slug back into a position.
+POSITIONS_DATA = Path(os.environ.get("POSITIONS_DATA") or DATA_DIR / "irrigation-positions.json")
 # The household almanac pages (<year>.md + <year>.json), regenerated nightly by almanac.py
 # and injected into the prompt when the almanac skill matches a request.
 ALMANAC_DIR = DATA_DIR / "almanac"

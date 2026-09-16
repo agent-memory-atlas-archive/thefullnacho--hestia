@@ -26,6 +26,11 @@ SCAD = Path(__file__).resolve().parent / "nfc-stake.scad"
 # Past this many characters a single embossed line drops under about 5mm and stops being
 # readable standing up, so the name goes on two lines instead.
 ONE_LINE_MAX = 10
+# NTAG213 holds 180 bytes of user memory, but the NDEF container and record header eat into
+# that. Measured on the real tags 2026-09-13: 137 bytes writes, 141 does not. 130 is that
+# measurement minus a little headroom, not a guess from a datasheet. Checked rather than
+# trusted, because the failure shows up outdoors with the tag already in the stake.
+NDEF_SAFE_BYTES = 130
 
 
 def split_label(name: str) -> tuple[str, str]:
@@ -76,15 +81,19 @@ def main() -> int:
     lines = []
     for position in positions:
         name = position["name"].strip()
-        query = {"token": token, "kind": "watering", "subject": name}
-        if position.get("source"):
-            query["source"] = position["source"]
-        # Absent on purpose for anything not sprinkler-watered: no rate means the run logs
-        # its minutes and claims no depth, which beats inventing inches for a hose at a
-        # tree's base.
-        if position.get("sprinkler"):
-            query["sprinkler"] = position["sprinkler"]
-        lines.append(f"{name}\t{args.base_url.rstrip('/')}/nfc?{urlencode(query)}")
+        # Only the slug goes on the tag. The brain resolves it back into subject, source and
+        # sprinkler from this same positions file, because the spelled-out form ran to 157
+        # bytes and an NTAG213 holds about 130 of NDEF, so it could not be written at all.
+        # Source and sprinkler stay absent for anything not sprinkler-watered: no rate means
+        # the run logs its minutes and claims no depth, which beats inventing inches for a
+        # hose at a tree's base.
+        query = {"token": token, "p": slug(name)}
+        url = f"{args.base_url.rstrip('/')}/nfc?{urlencode(query)}"
+        if len(url) > NDEF_SAFE_BYTES:
+            print(f"{name}: {len(url)} bytes will not fit an NTAG213. Shorten the base URL.",
+                  file=sys.stderr)
+            return 1
+        lines.append(f"{name}\t{url}")
 
     args.url_file.parent.mkdir(parents=True, exist_ok=True)
     handle = os.open(args.url_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

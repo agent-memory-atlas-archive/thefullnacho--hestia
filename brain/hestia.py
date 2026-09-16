@@ -1079,10 +1079,20 @@ async def ingest_photo(request: Request):
 
 @app.get("/nfc")
 async def nfc_capture(token: str = "", kind: str = "", subject: str = "",
-                      source: str = "", sprinkler: str = ""):
-    """Render the capture form for a scanned tag. Never touches the model — see nfc.py."""
+                      source: str = "", sprinkler: str = "", p: str = ""):
+    """Render the capture form for a scanned tag. Never touches the model — see nfc.py.
+
+    `p` is a watering stake's position slug, which the tag carries instead of spelling out
+    subject, source and sprinkler: the long form does not fit on an NTAG213. It resolves
+    server-side against the positions file, and an unknown slug refuses rather than guessing."""
     if not NFC_TOKEN or token != NFC_TOKEN:
         return HTMLResponse(nfc.bad_token_page(), status_code=401)
+    if p:
+        position = nfc.resolve_position(p)
+        if not position:
+            return HTMLResponse(nfc.unknown_position_page(p), status_code=404)
+        kind, subject = "watering", position["subject"]
+        source, sprinkler = position["source"], position["sprinkler"]
     if not subject:
         return HTMLResponse(nfc.error_page("Tag URL is missing 'subject'.", "400"), status_code=400)
     return HTMLResponse(nfc.capture_form(kind, subject, token, source, sprinkler))
@@ -1112,6 +1122,10 @@ async def nfc_log(request: Request):
         body, status = await asyncio.to_thread(
             nfc.log_watering_tag, subject, str(form.get("minutes") or ""),
             str(form.get("source") or ""), str(form.get("sprinkler") or ""), token)
+    elif kind == "rain":
+        body, status = await asyncio.to_thread(
+            nfc.log_rain_tag, subject, str(form.get("depth") or ""),
+            str(form.get("unit") or "in"), str(form.get("note") or ""))
     elif kind == "use":
         body, status = await asyncio.to_thread(
             nfc.log_use_tag, subject, str(form.get("minutes") or ""), str(form.get("note") or ""))

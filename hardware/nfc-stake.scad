@@ -37,8 +37,8 @@ tab_w      = 26;   // mount tab, above the text so the cup never covers the labe
 tab_h      = 32;
 cup_id     = 45;   // inner diameter
 cup_depth  = 50;   // four 15-minute cycles is 41mm, so this holds a week with rain
-cup_wall   = 2;
-mark_every = 5;    // graduation rings, mm
+cup_wall   = 2;   // inside is left smooth: printed rings stringed across the bore, and a
+                  // ruler plunged to the floor reads the depth just as well
 
 tag    = tag_d + fit;
 pocket = tag_h + cap_h;
@@ -101,13 +101,6 @@ module cup() {
         translate([0, (slot_y0 + slot_y1)/2, total/2])
             cube([tab_w + 0.6, slot_y1 - slot_y0, total + 2], center = true);
     }
-    // Every mark_every mm off the floor, doubled at each 10mm, read against the water line.
-    for (z = [mark_every : mark_every : cup_depth - mark_every])
-        translate([0, 0, cup_wall + z])
-            difference() {
-                cylinder(h = (z % 10 == 0) ? 1.2 : 0.6, d = cup_id, $fn = 96);
-                cylinder(h = 2, d = cup_id - 2.4, $fn = 96);
-            }
 }
 
 if (part == "all")   { stake(); translate([width, -20, 0]) cap(); }

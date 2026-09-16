@@ -7,6 +7,118 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-09-16 - the stakes get into the ground, and the cup earns its place as an instrument
+
+The catch cup's internal graduation rings were printing as spaghetti across the bore and out
+onto the outside wall. They are gone. The inside is a plain cylinder now and the depth is read
+by plunging a ruler to the floor, which is what the operator was going to do anyway. The mesh
+went from 1.27MB to 123KB, which is a fair measure of how much of that model was ring geometry
+hanging over open air.
+
+Then the tags would not write, and the reason turned out to be worth more than the fix.
+
+The stake URLs had been generated without a scheme, so every one of them read
+`host:8730/nfc?...`. A URI record with no scheme is not a link: the tag reads back perfectly
+and then nothing opens. Regenerated with `http://`, and pointed at the tailnet hostname rather
+than the tailnet IP, because a tag gets write-protected and an address change would brick all
+eighteen at once with no way to rewrite them.
+
+That still failed to write. An NTAG213 reports 180 bytes of user memory, and the tool duly
+said the tag was writable with space to spare, but the NDEF container and record header eat
+into that and the spelled-out URL was 157 bytes at its longest. Measured on the real tags by
+writing until it stopped: **137 bytes goes on, 141 does not.** The datasheet number was the
+wrong number to design against, which is the same lesson the cup itself exists to teach.
+
+So the tag now carries a position slug and nothing else, and the brain resolves it. `/nfc`
+accepts `p=<slug>`, looks it up in the positions file, and fills in subject, source and
+sprinkler server-side. 105 bytes at the longest, 32 to spare. An unknown slug is a 404 that
+names the slug and logs nothing: never a default, never a near match, because a run written
+against the wrong plant is worse than a run that refuses to be written. `make_tags.py` now
+refuses to emit anything over the cap, so that failure happens at a terminal instead of
+outdoors with the tag already in the stake. The spelled-out form still works, which matters
+because eight asset tags are already written and write-protected.
+
+The first real tap exposed a naming problem that would have quietly split the garden's
+history. The eighteen stake names mostly did not match the place entities that already hold
+records. Tapping the Blueberry stake would have created a second `Blueberry` beside
+`Blueberry Guild`, and from then on that bed's water would live on one entity and its harvests
+and photos on another, which the almanac cannot join. Five aliases now point the stake names
+at the established entities: Strawberries, Blueberry, Peach, Plum and Pond. Peach and Plum
+both resolve to `Peach/Plum Guild`, which is deliberate and means their water combines.
+
+Then the rain came, and the cup turned out to have a second job nothing else here can do.
+
+Two cups set out in the open both read 1.75 in at 13:52, against 1.57 in at the nearest
+official gauge through 13:35, in rain that was still falling. A printed cup and an ASOS station
+fifteen miles away agreeing inside about 11% is the cup validated as an instrument. It also
+surfaced a gap nobody had noticed: **the house has no rain sensor at all.** The Ecowitt
+gateway carries soil moisture only. These cups are the only rainfall numbers the property
+owns, and eighteen of them is eighteen gauges, which makes the spread between positions a
+microclimate reading nothing else here can produce. Today both read the same, which is what a
+broad frontal system should do. The interesting readings are the summer convective ones.
+
+The brain could not log any of that, so it can now. `rain` is its own event kind, not a
+watering run with a rain source. A run is something that was done, timed, with a depth derived
+from a rate sheet; rain is something that happened and the depth is the only fact in the row.
+Folding them together would inflate every bed's run count and put a measured number in the
+same column as an estimated one, which is the exact confusion the cup was built to end.
+`basis` is always `measured`, because there is no other way to get the number. Two guards a
+ruler cannot provide: a reading at the brim comes back flagged as a floor rather than a total,
+since a full cup and a cup that overflowed twice look identical, and anything past the cup's
+50mm is refused as a wrong unit or a mid-storm emptying that should be two readings.
+
+The season's first two rain rows are measured depths. Everything else in the water table is a
+spec-sheet estimate, which is the right way round for that table to start.
+
+One test watering, logged during the first tag tap to prove the path, was deleted before the
+nightly journal could narrate a run that never happened.
+
+Separately and read-only: surveyed the Plex hubs on the free tier. Home serves three populated
+rows and two of them are Recently Added, and the reason is not too many rows switched on but
+that Home has nothing else to show. Pinning a collection to Home is the Plex Pass gate, so on
+the free tier the only levers are trimming library tabs and reordering pins. Operator decided
+to leave the hubs alone and browse elsewhere instead. Nothing was changed on the media server.
+
+### In flight
+
+- Thirteen of the eighteen stake positions still have no place entity and will each create one
+  on first tap, with the "created it new" warning. That is correct behaviour, but the warning
+  needs reading rather than swiping past: a name that was expected to exist means another
+  alias is wanted.
+- Rain readings are write-only in practice. `rain_totals` exists, but nothing surfaces it yet:
+  not the almanac, not the nightly journal, not `snapshot()`.
+- Sprinkler application rates are still spec, not measured. The cup can settle that but the
+  attended run has not happened `[non-production]`.
+- A local HTML library browser served from `clients/`, with the brain proxying Plex so the
+  token never reaches the browser and a deep link handing off to the Plex app. Specified this
+  session, not started. Home Assistant has no Plex integration configured, which is the
+  separate path for playing to a device.
+
+### Next concrete action
+
+Surface rain where it will actually be seen. `rain_totals` is written and tested but invisible,
+and a measurement nobody reads is not yet an instrument. The almanac already puts yield against
+water per bed; rain belongs beside them as its own column, clearly separate from applied water
+rather than summed into it. The nightly journal should mention a day that had a reading. Both
+are deterministic reads of rows that already exist, no model involvement.
+
+Then: the eighteen-position spread is the payoff, so the second and third storms matter more
+than the first. Nothing to build for that, only readings to take.
+
+### Non-production, queued
+
+- `[non-production]` Reprint the catch cup now the inside is smooth, and check a ruler reads
+  the wet line cleanly.
+- `[non-production]` Write the remaining NFC tags and get the last two stakes into the ground.
+- `[non-production]` Delete the stake URL file off the phone once the tags are written. It
+  carries the live NFC token in plain text, once per line.
+- `[non-production]` Soil moisture channel 7 reads `unavailable` and channel 6 is at 1.3V.
+  Channel 7 was blind through the whole storm, so that bed has no wet-up reading.
+- `[non-production]` Attended catch-cup check on a zone-3 sprinkler position, to replace the
+  rate-sheet depth with a measured one.
+
+---
+
 ## 2026-09-11 - session wrap: irrigation went from a BLE experiment to a capture path
 
 Three days of work on one thread. Orbit forces their cloud servers to drive a manifold

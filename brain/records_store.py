@@ -559,6 +559,64 @@ def log_watering(place: str, seconds: int, source: str | None = None,
                             "basis": basis if inches is not None else None})
 
 
+MM_PER_IN = 25.4
+
+
+def log_rain(place: str, inches: float, ts: str | None = None,
+             note: str | None = None) -> dict:
+    """Record rain caught at a place, read off a catch cup with a ruler.
+
+    Deliberately its own event kind rather than a watering run with `source="rain"`. A
+    watering run is a thing that was done, measured in minutes, with a depth derived from a
+    sprinkler's rate sheet. This is the opposite on both counts: nothing was done, there is
+    no duration, and the depth is the only fact in the row. Folding it into `watering` would
+    inflate the run count for every bed and put a measured number in the same column as an
+    estimated one, which is the exact confusion the catch cup was built to end. So `basis`
+    is always `measured` here: there is no other way to get this number."""
+    inches = float(inches)
+    if not inches > 0:
+        raise ValueError("A rain reading needs a positive depth")
+    mm = round(inches * MM_PER_IN, 1)
+    detail = f"{inches:g} in ({mm:g} mm)"
+    if note:
+        detail += f", {note}"
+    return log_event("rain", subject=place, action="measured", detail=detail,
+                     subject_kind="place", strict_subject=True, fuzzy_subject=True, ts=ts,
+                     attrs={"inches": inches, "mm": mm, "basis": "measured",
+                            "source": "rain", "note": note or None})
+
+
+def rain_totals(year: int | None = None, place: str | None = None) -> list[dict]:
+    """Rain caught per place this season, wettest first. Separate from `water_totals` for
+    the same reason the event kind is separate: applied and fallen are different questions,
+    and a bed's season story needs them side by side, not summed into one number."""
+    year = year or int(_now()[:4])
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT e.attrs, e.ts, en.name AS place FROM events e "
+            "LEFT JOIN entities en ON en.id=e.entity_id "
+            "WHERE e.kind='rain' AND substr(e.ts,1,4)=?", (str(year),)).fetchall()
+    agg: dict = {}
+    for r in rows:
+        a = json.loads(r["attrs"] or "{}")
+        name = r["place"] or "?"
+        if place and name.lower() != place.lower():
+            continue
+        e = agg.setdefault(name, {"place": name, "readings": 0, "inches": 0.0,
+                                  "first": r["ts"], "last": r["ts"]})
+        e["readings"] += 1
+        e["inches"] += float(a.get("inches") or 0)
+        e["first"] = min(e["first"], r["ts"])
+        e["last"] = max(e["last"], r["ts"])
+    out = []
+    for e in agg.values():
+        e["inches"] = round(e["inches"], 2)
+        e["mm"] = round(e["inches"] * MM_PER_IN, 1)
+        out.append(e)
+    out.sort(key=lambda e: e["inches"], reverse=True)
+    return out
+
+
 def last_photo(subject: str) -> dict | None:
     """The most recent photo filed against a place, pet or asset, or None if there is none.
     The watering tap uses this to decide whether to ask for a picture, so "is a photo due"

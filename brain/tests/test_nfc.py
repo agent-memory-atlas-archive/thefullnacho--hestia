@@ -5,6 +5,9 @@ validation at the /nfc + /nfc/log routes."""
 from __future__ import annotations
 
 import datetime as dt
+import importlib.util
+import json
+from pathlib import Path
 
 import pytest
 
@@ -284,3 +287,193 @@ def test_the_watering_run_is_written_even_when_the_photo_is_skipped(photo_client
     _water(photo_client)
     # The offer is on the way out, never a gate in front of the thing being logged.
     assert db.water_totals(place="Strawberries")[0]["runs"] == 1
+
+
+# ----- position slugs: what a stake tag actually carries ---------------------------------
+# The long URL did not fit an NTAG213, so the tag carries a slug and the brain resolves it.
+# These tests exist because the failure mode is a silent one: a slug that resolves to the
+# wrong bed logs a real run against the wrong plant, outdoors, with no one checking.
+
+@pytest.fixture
+def positions(tmp_path, monkeypatch):
+    import config
+    import nfc
+    path = tmp_path / "irrigation-positions.json"
+    path.write_text(json.dumps([
+        {"name": "Strawberries", "source": "zone3", "sprinkler": "hi-rise"},
+        {"name": "Apple #1", "source": "zone3", "sprinkler": "hi-rise"},
+        {"name": "Woodland Edge Guild", "source": "spigot", "sprinkler": "hi-rise"},
+        {"name": "Pond", "source": "spigot"},
+    ]))
+    monkeypatch.setattr(config, "POSITIONS_DATA", path)
+    return nfc
+
+
+def test_slug_round_trips_every_awkward_name(positions):
+    assert positions.position_slug("Apple #1") == "apple-1"
+    assert positions.position_slug("Woodland Edge Guild") == "woodland-edge-guild"
+    assert positions.position_slug("XMas Tree") == "xmas-tree"
+
+
+def test_resolve_position_returns_the_whole_position(positions):
+    assert positions.resolve_position("woodland-edge-guild") == {
+        "subject": "Woodland Edge Guild", "source": "spigot", "sprinkler": "hi-rise"}
+
+
+def test_resolve_position_keeps_a_missing_sprinkler_missing(positions):
+    # No sprinkler means no rate, which means the run claims minutes and no depth.
+    assert positions.resolve_position("pond")["sprinkler"] == ""
+
+
+def test_resolve_position_refuses_an_unknown_slug(positions):
+    assert positions.resolve_position("back-fence") is None
+    assert positions.resolve_position("") is None
+
+
+def test_resolve_position_survives_a_missing_positions_file(tmp_path, monkeypatch):
+    import config
+    import nfc
+    monkeypatch.setattr(config, "POSITIONS_DATA", tmp_path / "gone.json")
+    assert nfc.resolve_position("strawberries") is None
+
+
+def test_stake_tag_fills_in_the_whole_form_from_one_slug(client, positions):
+    r = client.get("/nfc", params={"token": "test-token", "p": "apple-1"})
+    assert r.status_code == 200
+    # The name is what records keys on, so the encoded form must come back exactly.
+    assert "Apple #1" in r.text
+    assert "zone3" in r.text and "hi-rise" in r.text
+
+
+def test_unknown_slug_says_so_and_logs_nothing(client, positions):
+    r = client.get("/nfc", params={"token": "test-token", "p": "back-fence"})
+    assert r.status_code == 404
+    assert "back-fence" in r.text
+    assert "<form" not in r.text
+
+
+def test_a_stake_tag_still_needs_the_token(client, positions):
+    r = client.get("/nfc", params={"token": "wrong", "p": "apple-1"})
+    assert r.status_code == 401
+
+
+def test_the_long_form_asset_tags_still_work(client, positions):
+    # Eight tags are already written and write-protected. They carry the spelled-out form.
+    r = client.get("/nfc", params={"token": "test-token", "kind": "service",
+                                  "subject": "Furnace Filter"})
+    assert r.status_code == 200 and "Furnace Filter" in r.text
+
+
+def test_the_generator_and_the_brain_agree_on_slugs(positions):
+    # Two copies of one function: if they drift, every tag resolves to nothing.
+    spec = importlib.util.spec_from_file_location(
+        "make_tags", Path(__file__).resolve().parents[2] / "hardware" / "make_tags.py")
+    make_tags = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(make_tags)
+    for name in ("Strawberries", "Apple #1", "XMas Tree", "Woodland Edge Guild", "Rose of Sharon"):
+        assert make_tags.slug(name) == positions.position_slug(name)
+
+
+def test_every_real_stake_url_fits_an_ntag213(positions):
+    spec = importlib.util.spec_from_file_location(
+        "make_tags", Path(__file__).resolve().parents[2] / "hardware" / "make_tags.py")
+    make_tags = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(make_tags)
+    base = "http://alex-ms-7e51:8730"
+    token = "4" * 48
+    for name in ("Woodland Edge Guild", "Rose of Sharon", "Strawberries"):
+        url = f"{base}/nfc?token={token}&p={make_tags.slug(name)}"
+        assert len(url) <= make_tags.NDEF_SAFE_BYTES
+
+
+# ----- rain readings: the cup's own job ---------------------------------------------------
+# Rain is the inverse of a watering run: no duration, and the depth is the only fact. These
+# tests pin the two things that would quietly corrupt a season — a measured number landing in
+# the same column as a spec-sheet estimate, and a brim-full cup reading as a total.
+
+def test_log_rain_writes_a_measured_depth(db):
+    db.upsert_entity("place", "Meadow")
+    r = db.log_rain("Meadow", 1.75)
+    assert r.get("created") is False
+    row = db.recent_events(kind="rain", limit=1)[0]
+    assert row["subject"] == "Meadow"
+    assert row["attrs"]["inches"] == 1.75
+    assert row["attrs"]["mm"] == 44.4
+    assert row["attrs"]["basis"] == "measured"
+
+
+def test_rain_never_counts_as_a_watering_run(db):
+    db.upsert_entity("place", "Meadow")
+    db.log_rain("Meadow", 1.75)
+    # The whole point of a separate kind: applied and fallen stay separate questions.
+    assert db.water_totals(place="Meadow") == []
+    assert db.rain_totals(place="Meadow")[0]["inches"] == 1.75
+
+
+def test_rain_totals_sum_readings_per_place(db):
+    db.upsert_entity("place", "Meadow")
+    db.log_rain("Meadow", 1.75)
+    db.log_rain("Meadow", 0.5)
+    total = db.rain_totals(place="Meadow")[0]
+    assert total["readings"] == 2 and total["inches"] == 2.25 and total["mm"] == 57.1
+
+
+@pytest.mark.parametrize("depth", ["0", "-1", "", "wet"])
+def test_rain_tag_rejects_a_depth_that_is_not_a_positive_number(db, depth):
+    import nfc
+    body, status = nfc.log_rain_tag("Meadow", depth)
+    assert status == 400 and "Logged" not in body
+
+
+def test_rain_tag_converts_mm_to_inches(db):
+    db.upsert_entity("place", "Meadow")
+    import nfc
+    body, status = nfc.log_rain_tag("Meadow", "44.5", unit="mm")
+    assert status == 200
+    assert db.recent_events(kind="rain", limit=1)[0]["attrs"]["inches"] == 1.752
+
+
+def test_rain_tag_refuses_more_than_the_cup_can_hold(db):
+    # 3 inches is 76mm in a 50mm cup: the unit is wrong, or it was emptied mid-storm.
+    import nfc
+    body, status = nfc.log_rain_tag("Meadow", "3")
+    assert status == 400 and "deeper than the cup" in body
+    assert db.recent_events(kind="rain", limit=1) == []
+
+
+def test_a_brim_full_cup_is_reported_as_a_floor(db):
+    db.upsert_entity("place", "Meadow")
+    import nfc
+    body, status = nfc.log_rain_tag("Meadow", "50", unit="mm")
+    assert status == 200
+    assert "floor" in body and "or more" in body
+
+
+def test_a_part_full_cup_is_not_hedged(db):
+    db.upsert_entity("place", "Meadow")
+    import nfc
+    body, status = nfc.log_rain_tag("Meadow", "1.75")
+    assert status == 200 and "floor" not in body
+
+
+def test_the_stake_form_offers_rain_alongside_watering(client, positions):
+    r = client.get("/nfc", params={"token": "test-token", "p": "strawberries"})
+    assert r.status_code == 200
+    # Two separate forms, so the two kinds can never be submitted together.
+    assert r.text.count('name="kind"') == 2
+    assert 'value="rain"' in r.text and 'value="watering"' in r.text
+
+
+def test_rain_route_end_to_end(client, db):
+    db.upsert_entity("place", "Meadow")
+    r = client.post("/nfc/log", data={"token": "test-token", "kind": "rain",
+                                     "subject": "Meadow", "depth": "1.75", "unit": "in"})
+    assert r.status_code == 200 and "1.75 in of rain" in r.text
+    assert db.rain_totals(place="Meadow")[0]["inches"] == 1.75
+
+
+def test_rain_route_needs_the_token(client, db):
+    r = client.post("/nfc/log", data={"token": "nope", "kind": "rain",
+                                     "subject": "Meadow", "depth": "1.75"})
+    assert r.status_code == 401
+    assert db.recent_events(kind="rain", limit=1) == []

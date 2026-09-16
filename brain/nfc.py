@@ -7,6 +7,12 @@ backstop to notice a silent no-op later. This module never touches the model —
 plain form, the form POSTs straight to `records_store`, and the reply says exactly what was
 written (or exactly what was wrong), synchronously, in the response.
 
+A watering stake encodes the short form `/nfc?token=...&p=<slug>`, and the slug is resolved
+against the positions file into subject, source and sprinkler. That indirection is not
+tidiness: the long form ran to 157 bytes and an NTAG213 took 137 on the bench and refused
+141, so the full URL physically would not write. An unknown slug is an error page, never a default.
+
+The long form still works and is what the asset tags carry:
 A tag encodes a URL like `/nfc?token=...&kind=harvest&subject=Bed+2` (garden beds),
 `/nfc?token=...&kind=service&subject=Furnace+Filter` (assets — resets the `due` clock, see
 `records_store.due_assets`), or `/nfc?token=...&kind=use&subject=Weedwhacker` (assets whose
@@ -15,6 +21,13 @@ maintenance isn't calendar-based — just a running log of minutes run, no due d
 ground where a hose-fed sprinkler gets set down).
 `subject` is the bed/asset/place name; GET renders the capture form with it locked in, POST
 /nfc/log does the write and renders the confirmation.
+
+A stake also answers the opposite question. The watering form carries a second, separate form
+for a rain reading off the catch cup mounted on that same stake: `kind=rain` with a depth and
+no duration, `basis` always `measured`, kept out of `watering` so a season's applied water and
+its fallen water never end up summed in one column. A reading at the cup's brim is reported
+back as a floor rather than a total, because a full cup and one that overflowed twice look the
+same to a ruler.
 
 A watering tag carries its own `source` and `sprinkler` because the stake never moves and the
 answers never change, which leaves one prefilled field between a scan and a logged run. That
@@ -30,7 +43,10 @@ from __future__ import annotations
 
 import datetime as dt
 import html
+import json
+import re
 
+import config
 import records_store as store
 
 UNITS = ["lb", "oz", "kg", "g", "each", "pint", "quart", "basket"]
@@ -44,6 +60,11 @@ DEFAULT_WATERING_MINUTES = 15
 # rather than the operator's judgement, which is the same reason schedules are not the model's
 # business either.
 PHOTO_EVERY_DAYS = 7
+
+# The catch cup's inside height, from hardware/nfc-stake.scad. A reading at the brim is a
+# floor and not a total, and the form has to say so, because a full cup and a cup that
+# overflowed twice look identical to a ruler.
+CUP_DEPTH_MM = 50
 
 
 def _page(body: str, title: str = "Hestia") -> str:
@@ -71,6 +92,36 @@ def _page(body: str, title: str = "Hestia") -> str:
 <body>{body}</body></html>"""
 
 
+def position_slug(name: str) -> str:
+    """The stake's short name. Same function as `hardware/make_tags.py`, on purpose: the slug
+    is the tag's whole payload, so the two must agree or a scan resolves to nothing."""
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", name.lower())).strip("-")
+
+
+def resolve_position(key: str) -> dict | None:
+    """Turn a scanned slug back into name, source and sprinkler. Returns None when the slug
+    names nothing, so the caller can say so out loud — never a guess or a partial match. A
+    watering run logged against the wrong bed is worse than one that refuses to log."""
+    try:
+        positions = json.loads(config.POSITIONS_DATA.read_text())
+    except (OSError, ValueError):
+        return None
+    for position in positions:
+        name = str(position.get("name") or "").strip()
+        if name and position_slug(name) == key:
+            return {"subject": name,
+                    "source": str(position.get("source") or ""),
+                    "sprinkler": str(position.get("sprinkler") or "")}
+    return None
+
+
+def unknown_position_page(key: str) -> str:
+    return error_page(
+        f"This tag names a position the brain does not know: <code>{html.escape(key)}</code>. "
+        f"Nothing was logged. Check {html.escape(config.POSITIONS_DATA.name)}, or re-write the "
+        f"tag from data/stake-urls.txt.", "404")
+
+
 def error_page(msg: str, status_hint: str = "") -> str:
     return _page(f'<div class="err"><strong>{status_hint or "Error"}</strong><br>{msg}</div>')
 
@@ -81,6 +132,7 @@ def bad_token_page() -> str:
 
 def capture_form(kind: str, subject: str, token: str,
                  source: str = "", sprinkler: str = "") -> str:
+    extra_form = ""
     if kind == "harvest":
         fields = f"""
         <label for="crop">Crop</label>
@@ -127,12 +179,26 @@ def capture_form(kind: str, subject: str, token: str,
         <input type="hidden" name="source" value="{html.escape(source)}">
         """
         button = "Log watering"
+        # The same stake answers both questions, because the cup is mounted on it. One tap
+        # after a run logs minutes; one tap after rain logs a depth someone actually read.
+        extra_form = _rain_form(subject, token)
+    elif kind == "rain":
+        fields = """
+        <label for="depth">Depth in the cup</label>
+        <input id="depth" name="depth" type="number" step="any" inputmode="decimal" autofocus required>
+        <label for="unit">Unit</label>
+        <select id="unit" name="unit"><option value="in">inches</option><option value="mm">mm</option></select>
+        <label for="note">Note (optional)</label>
+        <input id="note" name="note" type="text" placeholder="e.g. emptied mid-storm" autocomplete="off">
+        """
+        button = "Log rain"
     else:
         return error_page(f"Unknown kind '{html.escape(kind)}' — tag should encode "
-                          "kind=harvest, kind=service, kind=use, or kind=watering.", "400")
+                          "kind=harvest, kind=service, kind=use, kind=watering, or kind=rain.", "400")
 
     safe_subject = html.escape(subject)
-    heading = {"harvest": "Harvest", "watering": "Watering"}.get(kind, "Service")
+    heading = {"harvest": "Harvest", "watering": "Watering",
+               "rain": "Rain reading"}.get(kind, "Service")
     return _page(f"""
     <h1>{heading}</h1>
     <div class="subject">{safe_subject}</div>
@@ -143,7 +209,27 @@ def capture_form(kind: str, subject: str, token: str,
       {fields}
       <button type="submit">{button}</button>
     </form>
+    {extra_form}
     """)
+
+
+def _rain_form(subject: str, token: str) -> str:
+    """The second question a stake can answer. Its own <form> rather than a second button on
+    the watering one, so the two kinds can never be submitted together or confused."""
+    safe_subject = html.escape(subject)
+    return f"""
+    <div class="due">
+      <form method="post" action="/nfc/log">
+        <input type="hidden" name="token" value="{html.escape(token)}">
+        <input type="hidden" name="kind" value="rain">
+        <input type="hidden" name="subject" value="{safe_subject}">
+        <label for="depth">Or log rain caught in the cup</label>
+        <input id="depth" name="depth" type="number" step="any" inputmode="decimal"
+               placeholder="depth">
+        <select name="unit"><option value="in">inches</option><option value="mm">mm</option></select>
+        <button type="submit">Log rain</button>
+      </form>
+    </div>"""
 
 
 def photo_due(subject: str) -> float | None:
@@ -246,6 +332,32 @@ def log_watering_tag(subject: str, minutes: str, source: str = "",
     extra = _photo_form(subject, token, due) if due is not None else ""
     return _confirm(f"Logged {m:g} min watering", detail,
                     r.get("created", False), subject, extra), 200
+
+
+def log_rain_tag(subject: str, depth: str, unit: str = "in",
+                 note: str = "") -> tuple[str, int]:
+    """Write a rain reading taken off the catch cup. The cup is 50mm deep, so a reading at
+    or past that is reported back as a floor rather than a total: a full cup means "at least
+    this much", and saying so is the difference between a measurement and a guess."""
+    try:
+        d = float(depth)
+    except (TypeError, ValueError):
+        return error_page("Depth must be a number.", "400"), 400
+    if not d > 0:
+        return error_page("Depth must be a positive number.", "400"), 400
+    inches = d / store.MM_PER_IN if (unit or "in").lower() == "mm" else d
+    mm = inches * store.MM_PER_IN
+    if mm > CUP_DEPTH_MM + 1:
+        return error_page(
+            f"{mm:.0f}mm is deeper than the cup is tall ({CUP_DEPTH_MM:g}mm). "
+            "Check the unit, or log it as two readings if you emptied it mid-storm.",
+            "400"), 400
+    r = store.log_rain(subject, round(inches, 3), note=(note or "").strip() or None)
+    overflow = ("<div class=\"warn\">Cup was at or near full, so this is a floor, "
+                "not a total. Real rainfall was this much or more.</div>"
+                if mm >= CUP_DEPTH_MM - 2 else "")
+    return _confirm(f"Logged {inches:.2f} in of rain", f"{subject} — {mm:.0f} mm, measured",
+                    r.get("created", False), subject, overflow), 200
 
 
 def log_use_tag(subject: str, minutes: str, note: str) -> tuple[str, int]:
