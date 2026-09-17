@@ -3,9 +3,20 @@
 Runs daily via a systemd user timer. Pulls soil moisture from Home Assistant and
 the forecast from the weather tool, then pushes a phone notification ONLY when
 there's something to act on:
+  - A sensor is lying     — unavailable, reading 0%, frozen for SOIL_FLAT_HOURS, or a
+                            battery at or under SOIL_BATT_LOW. Checked FIRST, because every
+                            line below it is only as good as the readings it came from
   - Frost/freeze coming   — forecast low <= FROST_F within the horizon
   - A bed is dry          — soil <= DRY_PCT AND no meaningful rain coming (skip if rain due)
   - Heavy rain coming     — a day >= HEAVY_RAIN_IN, a heads-up to skip watering
+
+The staleness check exists because two failures this season were invisible by design. A dead
+sensor vanished from the count, so the briefing said "all 5 beds fine" for a month instead of
+naming the sixth. And a frozen gateway does not even change the count: Home Assistant carries
+the last value forward, so six beds reported one identical number a day for six days, one of
+them a literal 0.0%, and it read as steady soil. A frozen reading is worse than a missing one
+because it is confidently wrong, and these numbers are meant to drive a valve one day. All
+sensors flat at once is reported as one gateway fault, not six probe faults.
 
 No notification means nothing needs doing (user chose "only if actionable").
 Currently-raining is intentionally NOT an alert. NWS official warnings live in the
@@ -16,6 +27,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 import sys
 
 import httpx
@@ -32,6 +44,8 @@ DRY_PCT = float(os.environ.get("GARDEN_DRY_PCT", "40"))
 HEAVY_RAIN_IN = float(os.environ.get("GARDEN_HEAVY_RAIN_IN", "0.5"))
 SAT_PCT = float(os.environ.get("GARDEN_SAT_PCT", "95"))  # waterlogged threshold
 SAT_DAYS = int(os.environ.get("GARDEN_SAT_DAYS", "2"))   # consecutive mornings to alert
+SOIL_FLAT_HOURS = int(os.environ.get("GARDEN_SOIL_FLAT_HOURS", "24"))  # unchanged this long = suspect
+SOIL_BATT_LOW = float(os.environ.get("GARDEN_SOIL_BATT_LOW", "1.3"))   # volts, WH51
 STATE_PATH = str(config.GARDEN_STATE)
 RAIN_WINDOW_DAYS = 3  # "no rain coming" lookahead for the dry-bed test
 HORIZON = 7
@@ -53,6 +67,109 @@ def soil_beds() -> list[tuple[str, float]]:
         name = s["attributes"].get("friendly_name", s["entity_id"]).replace(" Soil Moisture", "")
         beds.append((name, pct))
     return sorted(beds)
+
+
+def _soil_states() -> list[dict]:
+    r = httpx.get(f"{HA_URL}/api/states", headers=_HDRS, timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+def _channel(entity_id: str) -> str:
+    """The WH51 channel number, which is the only thing tying a battery entity to a bed."""
+    m = re.search(r"(\d+)$", entity_id)
+    return m.group(1) if m else ""
+
+
+def _bed_name(entity: dict) -> str:
+    return (entity["attributes"].get("friendly_name", entity["entity_id"])
+            .replace(" Soil Moisture", ""))
+
+
+def _changed_recently(entity_ids: list[str], hours: int) -> dict[str, int]:
+    """Distinct states each entity reported in the last `hours`. One history call, not six."""
+    start = (dt.datetime.now() - dt.timedelta(hours=hours)).replace(microsecond=0)
+    r = httpx.get(f"{HA_URL}/api/history/period/{start.isoformat()}", headers=_HDRS,
+                  params={"filter_entity_id": ",".join(entity_ids),
+                          "minimal_response": "true"}, timeout=30)
+    r.raise_for_status()
+    out = {}
+    for series in r.json():
+        if not series:
+            continue
+        eid = series[0].get("entity_id")
+        if eid:
+            out[eid] = len({point.get("state") for point in series})
+    return out
+
+
+def stale_sensors() -> list[str]:
+    """Soil sensors that are lying rather than reading.
+
+    `soil_beds` skips anything it cannot parse, which is why Hot Peppers could sit dead from
+    2026-08-15 to 2026-09-17 while the briefing kept saying every bed was fine: the count
+    quietly went from six to five and nothing said so. Worse, a frozen gateway does not even
+    change the count. It carries the last value forward, so the beds read plausible and
+    steady, which is exactly what healthy soil looks like. In June 2026 that produced six
+    days of identical readings including a literal 0.0%, and it was only caught months later
+    by eye.
+
+    This is deterministic on purpose. Staleness is a comparison of rows over a window, not a
+    judgement, so no model is involved and none should be.
+    """
+    states = _soil_states()
+    moisture = [s for s in states if "soilmoisture" in s["entity_id"]]
+    if not moisture:
+        return []
+    battery = {s["entity_id"]: s for s in states if "soilbatt" in s["entity_id"]}
+
+    dead, zero, live = [], [], []
+    for s in moisture:
+        try:
+            pct = float(s["state"])
+        except (TypeError, ValueError):
+            dead.append(s)
+            continue
+        (zero if pct == 0 else live).append(s)
+
+    flat: list[dict] = []
+    if live:
+        try:
+            distinct = _changed_recently([s["entity_id"] for s in live], SOIL_FLAT_HOURS)
+        except Exception as e:  # noqa: BLE001 — a history outage must not fake an alert
+            print(f"garden-watch: soil history read failed: {e}", file=sys.stderr)
+            distinct = {}
+        flat = [s for s in live if distinct.get(s["entity_id"], 2) <= 1]
+
+    out = []
+    # All of them at once is one fault upstream, not six coincidences. Say so, because six
+    # separate sensor alerts would send someone to check six probes that are all fine.
+    if flat and len(flat) == len(live) and not dead and not zero:
+        out.append(f"ALL {len(flat)} soil sensors unchanged for {SOIL_FLAT_HOURS}h — that is "
+                   f"the Ecowitt gateway, not the beds. Readings are carried-forward, so "
+                   f"nothing should act on them until it is back.")
+    else:
+        for s in dead:
+            out.append(f"Soil sensor {_bed_name(s)} is not reporting ({s['state']}).")
+        for s in zero:
+            out.append(f"Soil sensor {_bed_name(s)} reads 0% — that is a fault, not dry soil.")
+        for s in flat:
+            out.append(f"Soil sensor {_bed_name(s)} unchanged for {SOIL_FLAT_HOURS}h "
+                       f"at {float(s['state']):.0f}% — suspect frozen, not steady.")
+
+    # Batteries last: a warning ahead of the failure, rather than another way to find out
+    # after. The battery entities are named `soilbattN` with no bed in them, so the channel
+    # number is what ties a voltage to a bed.
+    beds_by_channel = {_channel(s["entity_id"]): _bed_name(s) for s in moisture}
+    for eid, s in sorted(battery.items()):
+        try:
+            volts = float(s["state"])
+        except (TypeError, ValueError):
+            continue
+        if volts <= SOIL_BATT_LOW:
+            where = beds_by_channel.get(_channel(eid)) or eid
+            out.append(f"Soil sensor battery low: {where} at {volts:.1f}V.")
+    return out
 
 
 def _load_state() -> dict:
@@ -118,6 +235,14 @@ def build_alerts(persist: bool = False) -> list[str]:
     except Exception as e:  # noqa: BLE001 — forecast alerts still worth sending
         beds = []
         print(f"garden-watch: soil read failed: {e}", file=sys.stderr)
+
+    # Before anything is said about what the beds need, say whether the beds can be heard at
+    # all. A frozen reading looks exactly like a healthy one, so this goes first: everything
+    # below it is only as good as the sensors it came from.
+    try:
+        alerts.extend(stale_sensors())
+    except Exception as e:  # noqa: BLE001 — a stale check must never cost the real alerts
+        print(f"garden-watch: stale check failed: {e}", file=sys.stderr)
     dry = [(n, p) for n, p in beds if p <= DRY_PCT]
     if dry and near_rain < weather.RAIN_MIN_IN:
         names = ", ".join(f"{n} ({p:.0f}%)" for n, p in dry)

@@ -7,6 +7,61 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-09-17 - the soil sensors get a check that notices when they stop telling the truth
+
+A blog-post data pull went looking for a pre-drip contrast week and found six days of frozen
+readings instead. June 2 to 7, every bed reported exactly one value per day, unchanging, with
+Artichoke and Potatoes sitting at a literal 0.0% through an 81-87F dry stretch. Home Assistant
+had carried the last value forward while the Ecowitt gateway was down, and the result looked
+exactly like healthy, steady soil. The chart would have been a false claim.
+
+The same pull showed the Hot Peppers sensor stopped on 2026-08-15 and had been dead for a
+month. That one was invisible for a different reason: `soil_beds()` skips anything it cannot
+parse, so the count quietly went from six to five and the briefing kept saying every bed was
+fine. Two failure modes, both silent, both shaped like good news.
+
+So `garden_watch.stale_sensors()` now runs first, ahead of every other garden alert, because
+whether to water is only as good as the readings it was decided from. It flags four things: a
+sensor not reporting, a sensor reading 0% (a fault, never dry soil), a sensor unchanged for
+`SOIL_FLAT_HOURS`, and a battery at or under `SOIL_BATT_LOW`. Battery entities carry no bed in
+their names, so the channel number is what ties a voltage to a bed.
+
+All sensors flat at once is reported as one gateway fault rather than six probe faults, and
+that line says explicitly that nothing should act on carried-forward readings. That wording is
+deliberate: the plan is to let these numbers drive B-hyve zone 4, and a frozen value is worse
+than a missing one because it is confidently wrong. A history read that fails is never treated
+as evidence a value did not move.
+
+The briefing also stops saying "all 5 beds fine" when there are six. It says reporting beds.
+
+Live on the estate the moment it shipped: Hot Peppers not reporting, Tomatoes battery at 1.3V.
+Both will ride tomorrow's 07:10 push.
+
+### In flight
+
+- Rain readings are still write-only. `rain_totals` exists; the almanac, the journal and
+  `snapshot()` do not read it yet. Unchanged from yesterday and still the next build.
+- Staleness is reported but does not yet gate anything, because nothing automated acts on
+  moisture yet. When zone 4 is driven by these readings, the same check has to sit in front of
+  the valve, not just in the morning push.
+- Watering run history still lives only 10 days. B-hyve publishes the last run per zone as a
+  timestamp entity with no long-term statistics, so every run older than the recorder purge is
+  gone. The NFC stakes are the fix, and the tag run is not finished.
+
+### Next concrete action
+
+Unchanged: surface rain in the almanac and the nightly journal. Then the zone-4 gate, which is
+the reason the staleness check was built rather than a nicety.
+
+### Non-production, queued
+
+- `[non-production]` Hot Peppers sensor (channel 7), dead since 2026-08-15. Likely battery.
+  Tomatoes (channel 6) at 1.3V, worth doing on the same trip.
+- `[non-production]` Decide whether to raise recorder retention for the six soil entities
+  only, so next season's raw data outlives the 10-day purge. HA config change, not taken.
+
+---
+
 ## 2026-09-16 - the stakes get into the ground, and the cup earns its place as an instrument
 
 The catch cup's internal graduation rings were printing as spaghetti across the bore and out

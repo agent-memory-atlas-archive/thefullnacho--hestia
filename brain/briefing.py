@@ -87,7 +87,9 @@ def _garden_facts() -> list[str]:
     if not beds:
         return []
     low = min(beds, key=lambda b: b[1])
-    return [f"Garden: all {len(beds)} beds fine; driest is {low[0]} at {low[1]:.0f}%."]
+    # Name the count of beds actually heard from. "All 5 beds fine" when there are 6 is how a
+    # dead sensor stayed invisible for a month.
+    return [f"Garden: all {len(beds)} reporting beds fine; driest is {low[0]} at {low[1]:.0f}%."]
 
 
 def _records_facts() -> list[str]:
