@@ -39,6 +39,9 @@ INBOX_DIR = Path(os.environ.get("HESTIA_INBOX_DIR") or MEMORY_DIR / "inbox")
 # Runtime state for the proactive garden-watch streak machine (XDG state dir by default).
 _STATE_HOME = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
 GARDEN_STATE = Path(os.environ.get("GARDEN_STATE") or _STATE_HOME / "hestia" / "garden_watch.json")
+# Puppy-watch alert dedupe, keyed by date. Like GARDEN_STATE and unlike the records it
+# reads, this is disposable: losing it costs one repeated notification, never a weight.
+PUPPY_STATE = Path(os.environ.get("PUPPY_STATE") or _STATE_HOME / "hestia" / "puppy_watch.json")
 # Pest-watch season state (biofix, cumulative GDD, per-season alert dedupe). Deliberately NOT
 # in the nightly backup: it's fully re-derivable — a fresh run re-finds the biofix and
 # back-fills GDD from the archive, and already-open windows re-mark silently.

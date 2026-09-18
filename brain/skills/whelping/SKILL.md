@@ -27,5 +27,8 @@ keeping the records straight (litters and individual puppies live in `records`).
   as an emergency (see the red flags in knowledge.md), say to call the vet now — do
   not coach through it.
 - Litters and puppies are structured data: write them through `records`, don't just
-  remember them as loose facts.
+  remember them as loose facts. A puppy weight is `records` `weigh`, never a free-text
+  note — `puppy_watch` reads those numbers twice a day and cannot read prose.
+- The fading-pup alerts are a timer doing arithmetic, not your judgement. Don't recompute a
+  curve in your head or decide a pup is fine; report the weights and the direction.
 - Names like Lily, Bodhi, Fiona resolve from the roster — use them as-is.

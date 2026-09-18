@@ -26,8 +26,20 @@ When a puppy is born ("Lily had a pup, 6 oz, male, by Bodhi"):
 2. For a pup not yet named, still record it (use a placeholder like "Lily pup 1") so the
    litter count stays right; rename later via `remember` on the pup.
 3. Don't store a manual litter total — it's computed from the actual pups.
-4. Ongoing weights are health events: log each with `records` `log` (kind='health',
-   subject = the pup, detail = the weight) so a fading pup shows up in the timeline.
+4. Ongoing weights go through `records` `action='weigh'` — `name` = the pup, `qty` and
+   `unit` (oz/g/lb/kg). Use this and not a plain `log`: `weigh` stores the number in grams,
+   which is what `puppy_watch` compares day over day. A weight written into free text is
+   readable by a person and invisible to the watcher.
+
+## "Is the pup gaining / is it fading?" — the weight curve
+1. `records` `entity` on the pup shows its recent weighings. Answer from the numbers, and
+   say the direction plainly: gaining, flat, or down.
+2. Do not reassure past the data. Flat or dropping weight is the earliest sign of a fading
+   pup, and "probably fine" is the answer that costs a puppy.
+3. `puppy_watch` already alerts on this twice a day while a litter is under three weeks old
+   (lost weight, no gain in two days, still under birth weight after day 3, or down 10% from
+   its own peak). If the user is asking, the alert either has not fired yet or they want the
+   detail — give them the readings, not a summary of the rules.
 
 ## "How many puppies / which litter?" — progeny questions
 - Call `records` `entity` on the dam or sire and read the precomputed progeny total and

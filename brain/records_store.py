@@ -496,6 +496,100 @@ def harvested_recently(item: str, days: int = 10) -> dict | None:
             "days_ago": (dt.datetime.now() - dt.datetime.fromisoformat(top_r["ts"])).days}
 
 
+# ----- neonatal weights -------------------------------------------------------
+# A puppy weight is structured, not prose — the same lesson the harvest section learned.
+# `decide.md` used to route pup weights to a plain health event with the number living in
+# free text, which reads fine to a person and is unusable to a watcher: nothing can compute
+# a curve out of "6 oz, looks good". Grams are stored on the event so puppy_watch can do
+# deterministic arithmetic, and the spoken amount is kept alongside so the timeline still
+# reads the way it was said.
+
+def _grams(text: str | None) -> float | None:
+    """Grams from a written weight ('7.5 oz', '1 lb 2 oz'), or None if there isn't one.
+    Used for legacy free-text health events and for the birth weight recorded by add_birth,
+    so pups weighed before the structured path existed still have a day-0 baseline."""
+    parts = [(float(n), u.strip().lower()) for n, u in _WEIGHT_TOKEN.findall(text or "")
+             if u.strip().lower() in _WEIGHT_G]
+    return sum(n * _WEIGHT_G[u] for n, u in parts) if parts else None
+
+
+def log_weight(pup: str, qty: float | str, unit: str | None = None,
+               ts: str | None = None, detail: str | None = None) -> dict:
+    """Record one puppy weighing. The pup is the event subject, kind-scoped to `pet` so a
+    weight can never mint a place or a species by typo. Raises ValueError when the amount
+    isn't a weight — a count of a puppy is meaningless and a silently-dropped unit would
+    put a wrong number on the curve the fading-pup alert reads."""
+    qty, unit = parse_qty_unit(qty, unit)
+    cls, canon = normalize_unit(unit)
+    if cls != "weight":
+        raise ValueError(f"a puppy weight needs a weight unit (oz, g, lb, kg), not {unit!r}")
+    grams = qty * _WEIGHT_G[canon]
+    amount = f"{qty:g} {canon}"
+    ev = log_event("health", subject=pup, action="weighed",
+                   detail=detail or amount, subject_kind="pet", strict_subject=True,
+                   ts=ts, attrs={"qty": qty, "unit": canon, "unit_class": cls,
+                                 "grams": round(grams, 2), "amount": amount})
+    return {**ev, "amount": amount, "grams": round(grams, 2)}
+
+
+def weight_series(pup: str) -> list[dict]:
+    """Every known weight for one pup as [{ts, date, grams, source}], oldest first.
+
+    Three sources, in order of trust: the structured `weighed` events, the birth weight
+    recorded by add_birth (day 0), and any older free-text health event that happens to
+    carry a parseable weight. The last one exists so the curve isn't blind to whatever was
+    logged before log_weight; it is marked `text` so a caller can tell it apart."""
+    with _conn() as c:
+        ent = resolve(pup, conn=c, kind="pet")
+        if not ent:
+            return []
+        rows = c.execute(
+            "SELECT ts, kind, action, detail, attrs FROM events "
+            "WHERE entity_id=? AND kind IN ('health','birth') ORDER BY ts",
+            (ent["id"],)).fetchall()
+    out = []
+    for r in rows:
+        a = json.loads(r["attrs"] or "{}")
+        if r["action"] == "weighed" and a.get("grams") is not None:
+            grams, source = float(a["grams"]), "weighed"
+        elif r["kind"] == "birth":
+            grams, source = _grams(a.get("weight")), "birth"
+        else:
+            grams, source = _grams(r["detail"]), "text"
+        if grams:
+            out.append({"ts": r["ts"], "date": r["ts"][:10],
+                        "grams": round(grams, 2), "source": source})
+    return out
+
+
+def active_litter(within_days: int, now: dt.datetime | None = None) -> dict | None:
+    """The litter young enough to still be on daily weights, or None.
+
+    Youngest whelped litter whose whelp date is within `within_days`. Returns its name,
+    whelp date, age in days, and its pups by name. A litter row with no pups linked yet is
+    still returned — "she whelped and nothing has been logged" is exactly the state the
+    watcher needs to be able to say out loud."""
+    today = (now or dt.datetime.now()).date()
+    with _conn() as c:
+        best = None
+        for r in c.execute("SELECT id, name, attrs FROM entities WHERE kind='litter'").fetchall():
+            whelped = (json.loads(r["attrs"] or "{}")).get("whelp_date")
+            if not whelped:
+                continue
+            try:
+                age = (today - dt.date.fromisoformat(whelped)).days
+            except ValueError:
+                continue
+            if 0 <= age <= within_days and (best is None or whelped > best["whelp_date"]):
+                best = {"id": r["id"], "name": r["name"], "whelp_date": whelped, "age_days": age}
+        if best is None:
+            return None
+        pups = c.execute(
+            "SELECT e.name AS name FROM relations r JOIN entities e ON e.id=r.to_id "
+            "WHERE r.from_id=? AND r.rel='pup' ORDER BY e.id", (best["id"],)).fetchall()
+        return {**best, "pups": [p["name"] for p in pups]}
+
+
 # ----- watering ---------------------------------------------------------------
 
 # Hand-placed sprinklers: inches per hour over the wetted circle, and the circle's

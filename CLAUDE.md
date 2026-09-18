@@ -39,7 +39,7 @@ bulk-touched. Control those one at a time, by name.
 | `brain/skills/` | The brain's own skill packs (almanac, garden_bed, home_control, media, recipe, whelping, wildlife). **Not** Claude Code skills |
 | `brain/*_store.py` | SQLite stores — records, memory, reminders |
 | `brain/voice/` | Whisper STT, Chatterbox-Turbo TTS, Piper CPU fallback. Separate venv and pyproject |
-| `deploy/systemd/` | Units and timers: brain, ollama, briefing, journal, reminders, garden-watch, backup, whisper, chatterbox, piper |
+| `deploy/systemd/` | Units and timers: brain, ollama, briefing, journal, reminders, garden-watch, puppy-watch, backup, whisper, chatterbox, piper |
 | `benchmarks/`, `brain/eval_*.py` | Model evaluation. `MODEL_EVAL.md` records results |
 
 Modules in `brain/` are flat and import each other flatly (`import config`, `import records_store`)

@@ -39,6 +39,9 @@ SCHEMA = {
                         "logs, 'entity' to look someone/something up, 'relate' to link two entities, "
                         "'birth' to record a newborn puppy (creates the pup as a pet, links dam/sire, "
                         "groups it into the litter, derives the litter size), "
+                        "'weigh' EVERY time a puppy is weighed ('Biscuit is 6.2 ounces', 'pup two "
+                        "is up to 7 oz') — pass name, qty and unit; use this INSTEAD of a plain log "
+                        "so the number lands on the growth curve the fading-pup watcher reads, "
                         "'harvest' whenever the user says they picked/pulled/got produce from a bed "
                         "('pulled four pounds of tomatoes from Bed 4', 'got a dozen cucumbers off "
                         "Bed 2') — pass bed, crop, qty and unit; use this INSTEAD of a plain log so "
@@ -49,11 +52,11 @@ SCHEMA = {
         "parameters": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["remember", "log", "birth", "harvest", "yield", "recent", "entity", "relate", "due"]},
+                "action": {"type": "string", "enum": ["remember", "log", "birth", "weigh", "harvest", "yield", "recent", "entity", "relate", "due"]},
                 "bed": {"type": "string", "description": "for harvest/yield: the bed or zone picked from, e.g. 'Bed 4', 'Carrots Round Bed'"},
                 "crop": {"type": "string", "description": "for harvest/yield: what was picked, e.g. 'Tomatoes'"},
-                "qty": {"type": ["number", "string"], "description": "for harvest: how much — a plain number, or the full amount as text ('2 lb 7 oz') when it's a mixed/compound weight that doesn't reduce to one unit"},
-                "unit": {"type": "string", "description": "for harvest: lb/oz/kg/g for weight, pint/quart for volume, or omit for a plain count"},
+                "qty": {"type": ["number", "string"], "description": "for harvest/weigh: how much — a plain number, or the full amount as text ('2 lb 7 oz') when it's a mixed/compound weight that doesn't reduce to one unit"},
+                "unit": {"type": "string", "description": "for harvest: lb/oz/kg/g for weight, pint/quart for volume, or omit for a plain count. for weigh: oz/g/lb/kg — a weight unit is required"},
                 "year": {"type": "integer", "description": "for yield: season year (default this year)"},
                 "name": {"type": "string", "description": "entity name (remember/entity; the 'from' for relate; the puppy's name for birth)"},
                 "dam": {"type": "string", "description": "for birth: the mother's name"},
@@ -115,6 +118,27 @@ def execute(action: str, name: str | None = None, kind: str | None = None,
             attrs = _as_dict(attrs)
             if attrs is None:
                 return "Error: attrs wasn't a valid JSON object — nothing was recorded."
+
+        if action == "weigh":
+            if not name or qty is None:
+                return "Error: weigh needs the puppy's name and a weight (e.g. name='Biscuit', qty=6.2, unit='oz')."
+            try:
+                r = store.log_weight(name, qty, unit=unit, ts=ts, detail=detail)
+            except (TypeError, ValueError) as e:
+                return (f"Error: {e}. Give the weight as a number plus a weight unit "
+                        f"(qty=6.2, unit='oz'), or the full amount as text ('1 lb 2 oz').")
+            # A brand-new pup on a weighing is far more often a misheard name than a pup nobody
+            # recorded being born — say so instead of quietly starting a second curve for one pup.
+            warn = (f"  \u26a0 '{name}' wasn't a known puppy — created it. Correct me if that's a mishear."
+                    if r.get("created") else "")
+            days = store.weight_series(name)
+            trend = ""
+            if len(days) >= 2:
+                delta = days[-1]["grams"] - days[-2]["grams"]
+                word = "up" if delta > 0 else "down" if delta < 0 else "flat"
+                trend = (f" That is {word}" + (f" {abs(delta) / 28.3495:.1f} oz" if delta else "")
+                         + " from the previous weighing.")
+            return f"Logged: {name} at {r['amount']}.{trend}{warn}"
 
         if action == "harvest":
             if not bed or not crop or qty is None:

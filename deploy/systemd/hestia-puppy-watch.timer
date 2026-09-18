@@ -1,0 +1,14 @@
+[Unit]
+Description=Hestia puppy watch — 09:00 and 20:00 ET (silent unless a litter is young and something needs doing)
+
+[Timer]
+# Twice daily: the morning run catches a weight that went the wrong way as soon as it is
+# logged, the evening run is what notices the weighing never happened at all. Both are
+# silent when no litter is inside the watch window, so this can be enabled before the whelp.
+OnCalendar=*-*-* 09:00:00
+OnCalendar=*-*-* 20:00:00
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
