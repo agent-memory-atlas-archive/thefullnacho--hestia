@@ -2,6 +2,7 @@
 name: whelping
 description: Use for the dog-breeding lifecycle — gestation and due dates, signs a dam is approaching whelp, neonatal puppy care, and logging litters/puppies into records. Covers our Lhasa Apso program (dams, sires, litters) and when to escalate to a vet.
 triggers: puppy, puppies, pup, pups, dam, sire, litter, litters, whelp, whelping, pregnant, pregnancy, gestation, breeding, breed, born, birth, nursing, neonatal, labor, straining, contractions, kennel, lily, bodhi, fiona
+tools: records, reminder
 metadata:
   domain: breeding
   version: 0.1.0

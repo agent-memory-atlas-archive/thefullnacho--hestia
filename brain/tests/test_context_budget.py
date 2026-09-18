@@ -79,3 +79,16 @@ def test_oversize_current_request_rejected_and_truncation_visible():
     [{'role': 'assistant', 'content': 'x'}]])
 def test_invalid_history_is_rejected(messages):
     assert context_budget.validate_messages(messages)
+
+
+def test_whelping_question_scopes_tools_and_fits_the_budget():
+    """A breeding question used to ship all eleven schemas (~16KB) and tip a plain
+    'when did Lily's pregnancy start' over the budget, answering with the shorten-it
+    error instead of the due date. The skill's tools allow-list is what keeps it under."""
+    query = "when did Lily's pregnancy start"
+    with fixtures():
+        schemas = prepare(query)
+        assert names(schemas) == {'records', 'reminder'}
+        messages = [{'role': 'system', 'content': asyncio.run(hestia._build_system_prompt(query))},
+                    {'role': 'user', 'content': query}]
+        context_budget.fit(messages, schemas, hestia.NUM_CTX, hestia.OUTPUT_TOKENS)
