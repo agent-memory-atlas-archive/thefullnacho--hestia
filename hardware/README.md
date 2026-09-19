@@ -13,6 +13,27 @@ sticker is what fails outside: the antenna is aluminium on thin film, so once wa
 under an edge it corrodes and the tag dies quietly, which is the worst failure for a path
 whose whole point is that it does not silently no-op.
 
+### Placement
+
+Keep a stake out of your own mowing and trimming paths. This is not tidiness either: on
+2026-09-19 a weedeater caught one and shredded the whole top of it, name, tab and all, in
+the time it takes to swing a trimmer head sideways. A stake is a thin printed post standing
+at string height in exactly the band of a yard that gets cut, and it is invisible from
+behind at walking speed.
+
+Put them inside a bed, behind a border, or against something that already stops a trimmer.
+If a position genuinely sits in a cut path, the stake is the wrong marker for it.
+
+**What survived is the argument for the pocket.** The tag sits in a recess below the surface
+under a printed cap, and everything from the tag down came through untouched and still
+scanned. That pocket is there to keep water off an aluminium antenna, not to survive a
+trimmer, and it did both. A surface-mounted sticker at that position would have been
+confetti, and the failure would have been silent: a tag that no longer reads looks exactly
+like a stake nobody has walked out to yet.
+
+So a clipped stake costs a reprint and loses no data. Reprint the post, move the tag across,
+and put it somewhere the string does not go.
+
 ### Printing
 
 Prints flat on its back with the text and pocket facing up, so there is no bridging and
