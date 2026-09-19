@@ -477,3 +477,42 @@ def test_rain_route_needs_the_token(client, db):
                                      "subject": "Meadow", "depth": "1.75"})
     assert r.status_code == 401
     assert db.recent_events(kind="rain", limit=1) == []
+
+
+def test_the_camera_tap_target_is_the_label_not_the_styled_input(photo_client, db):
+    """Reported from the field 2026-09-19: tapping the camera box did nothing on the phone.
+
+    A styled `input[type=file]` on iOS draws only a small native control inside whatever box
+    the CSS makes, so a full-width box is mostly dead pixels. The tap target has to be a
+    <label for> pointing at a hidden input, and the input must be clipped rather than
+    display:none, which some browsers refuse to open a picker for.
+    """
+    body = _water(photo_client).text
+    assert '<label class="filebtn" id="photobtn" for="photo">' in body
+    assert 'class="filein"' in body
+    assert "display: none" not in body
+
+
+def test_the_camera_input_is_not_required(photo_client, db):
+    """`required` on a clipped input can block submit with a validation error the browser
+    cannot focus or show. The server already rejects an empty upload, so it says so instead."""
+    body = _water(photo_client).text
+    form = body[body.index('action="/nfc/photo"'):body.index("</form>")]
+    assert "required" not in form
+
+
+def test_a_library_fallback_exists_for_a_denied_camera(photo_client, db):
+    """`capture` is the one attribute that can make a tap silently do nothing when Safari's
+    camera permission for the site is denied. The fallback drops it and opens the library,
+    on the same input so the server still sees exactly one file."""
+    body = _water(photo_client).text
+    assert 'id="photolib"' in body and "removeAttribute('capture')" in body
+    assert body.count('name="file"') == 1
+
+
+def test_an_empty_submit_is_refused_with_a_readable_reason(photo_client, db):
+    r = photo_client.post("/nfc/photo",
+                          data={"token": "test-token", "subject": "Strawberries"},
+                          files={"file": ("", b"", "image/jpeg")})
+    assert r.status_code == 400
+    assert "photo" in r.text.lower()

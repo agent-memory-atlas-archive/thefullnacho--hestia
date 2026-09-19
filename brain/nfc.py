@@ -79,8 +79,22 @@ def _page(body: str, title: str = "Hestia") -> str:
   h1 {{ font-size: 1.3rem; margin: 0 0 4px; }}
   .subject {{ color: #9ad; font-size: 1.1rem; margin-bottom: 20px; }}
   label {{ display: block; margin: 18px 0 6px; font-size: 1rem; color: #ccc; }}
-  input, select {{ width: 100%; box-sizing: border-box; font-size: 1.4rem; padding: 14px;
-                   border-radius: 10px; border: 1px solid #444; background: #1e2226; color: #fff; }}
+  input:not([type=file]), select {{ width: 100%; box-sizing: border-box; font-size: 1.4rem;
+                   padding: 14px; border-radius: 10px; border: 1px solid #444; background: #1e2226;
+                   color: #fff; }}
+  /* A styled `input[type=file]` is a trap on a phone: iOS draws only a small native "Choose
+     File" control inside whatever box the CSS makes, so a full-width dark box is mostly dead
+     pixels and tapping it does nothing. The input is hidden and a full-width <label for> is the
+     tap target instead, which every mobile browser forwards to the picker. Hidden by clipping,
+     never `display:none`, because a display:none input is not focusable and some browsers
+     refuse to open the picker for it. */
+  .filein {{ position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }}
+  .filebtn {{ display: block; width: 100%; box-sizing: border-box; margin: 6px 0 0;
+             text-align: center; font-size: 1.3rem; padding: 16px; border-radius: 10px;
+             border: 1px dashed #3a7; background: #1e2226; color: #9ad; cursor: pointer; }}
+  .filebtn.chosen {{ border-style: solid; background: #1d2e1d; color: #bfe6c8; }}
+  .altbtn {{ display: block; width: 100%; margin-top: 10px; background: none; border: none;
+            color: #9ad; font-size: 0.95rem; text-decoration: underline; padding: 8px; }}
   button {{ margin-top: 28px; width: 100%; font-size: 1.3rem; padding: 16px; border-radius: 10px;
            border: none; background: #3a7; color: #04120a; font-weight: 600; }}
   .big {{ font-size: 2.4rem; margin: 20px 0 8px; }}
@@ -242,7 +256,19 @@ def photo_due(subject: str) -> float | None:
 
 
 def _photo_form(subject: str, token: str, days: float) -> str:
-    """A camera button, shown only when one is due. `capture` opens the camera directly."""
+    """A camera button, shown only when one is due.
+
+    The tap target is the <label>, not the input. A styled file input on iOS is a box whose
+    tappable area is only the small native control inside it, so the obvious full-width box
+    did nothing when tapped (reported 2026-09-19, in the field, which is the only place it
+    could have been found).
+
+    `capture` sends the primary button straight to the camera, which is the whole point at a
+    stake. It is also the one attribute that can make a tap silently do nothing when Safari's
+    camera permission for this site has been denied, so there is a second control that drops
+    `capture` and opens the library. Same input, same field name, so the server sees one file
+    either way. With JS off the primary label still works, because `for=` needs no script.
+    """
     safe_subject = html.escape(subject)
     when = "no photo of this one yet" if days < 0 else f"last photo {days:.0f} days ago"
     return f"""
@@ -250,11 +276,32 @@ def _photo_form(subject: str, token: str, days: float) -> str:
       <form method="post" action="/nfc/photo" enctype="multipart/form-data">
         <input type="hidden" name="token" value="{html.escape(token)}">
         <input type="hidden" name="subject" value="{safe_subject}">
-        <label for="photo">Weekly photo &mdash; {when}</label>
-        <input id="photo" name="file" type="file" accept="image/*" capture="environment" required>
+        <div class="meta">Weekly photo &mdash; {when}</div>
+        <input id="photo" name="file" type="file" accept="image/*" capture="environment"
+               class="filein">
+        <label class="filebtn" id="photobtn" for="photo">&#128247; Take the photo</label>
+        <button type="button" class="altbtn" id="photolib">or choose an existing photo</button>
         <button type="submit">Add photo</button>
       </form>
-    </div>"""
+    </div>
+    <script>
+    (function () {{
+      var input = document.getElementById('photo');
+      var btn = document.getElementById('photobtn');
+      var lib = document.getElementById('photolib');
+      // Hidden input means no native filename readout, and at arm's length outdoors you need
+      // to know the photo took before you commit to the submit.
+      input.addEventListener('change', function () {{
+        var f = input.files && input.files[0];
+        btn.textContent = f ? '✓ ' + f.name : '📷 Take the photo';
+        btn.classList.toggle('chosen', !!f);
+      }});
+      lib.addEventListener('click', function () {{
+        input.removeAttribute('capture');
+        input.click();
+      }});
+    }})();
+    </script>"""
 
 
 def _confirm(headline: str, detail: str, created: bool, subject: str, extra: str = "") -> str:
