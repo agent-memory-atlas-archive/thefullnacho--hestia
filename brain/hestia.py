@@ -48,6 +48,7 @@ from tool_contract import ToolResult, mutation, receipt, validate, read_call_fro
 
 import memory_store  # noqa: E402
 import nfc  # noqa: E402
+import whelp_form  # noqa: E402
 import note_taker  # noqa: E402
 import records_store  # noqa: E402
 import review_notes  # noqa: E402
@@ -1131,6 +1132,50 @@ async def nfc_log(request: Request):
             nfc.log_use_tag, subject, str(form.get("minutes") or ""), str(form.get("note") or ""))
     else:
         body, status = nfc.error_page(f"Unknown kind '{kind}'.", "400"), 400
+    return HTMLResponse(body, status_code=status)
+
+
+# --- Whelp capture (no model in the path — see whelp_form.py) ---------------------------
+# The dam and sire are configuration rather than a form field: at 3am the answer is always the
+# same, and a free-text sire on a birth form is exactly how a litter ends up half attributed to
+# "Bodi". Change them here when a different pairing whelps.
+WHELP_DAM = os.environ.get("HESTIA_WHELP_DAM", "Lily")
+WHELP_SIRE = os.environ.get("HESTIA_WHELP_SIRE", "Bodhi")
+
+
+@app.get("/whelp")
+async def whelp_board(token: str = ""):
+    """The live litter board: a coloured row per pup with a weight box, plus a birth form.
+    Shares the NFC token, so the phone carries one credential for every capture surface."""
+    if not NFC_TOKEN or token != NFC_TOKEN:
+        return HTMLResponse(nfc.bad_token_page(), status_code=401)
+    body = await asyncio.to_thread(whelp_form.board, token, WHELP_DAM, WHELP_SIRE)
+    return HTMLResponse(body)
+
+
+@app.post("/whelp/weigh")
+async def whelp_weigh(request: Request):
+    """Log one puppy weight straight to records. The reply states what was written."""
+    form = await request.form()
+    if not NFC_TOKEN or str(form.get("token") or "") != NFC_TOKEN:
+        return HTMLResponse(nfc.bad_token_page(), status_code=401)
+    pup = str(form.get("pup") or "").strip()
+    if not pup:
+        return HTMLResponse(whelp_form.error("No puppy was named.", "400"), status_code=400)
+    body, status = await asyncio.to_thread(whelp_form.weigh_result, pup,
+                                           str(form.get("oz") or ""))
+    return HTMLResponse(body, status_code=status)
+
+
+@app.post("/whelp/born")
+async def whelp_born(request: Request):
+    """Record a birth against a collar colour, creating the pup and its litter."""
+    form = await request.form()
+    if not NFC_TOKEN or str(form.get("token") or "") != NFC_TOKEN:
+        return HTMLResponse(nfc.bad_token_page(), status_code=401)
+    body, status = await asyncio.to_thread(
+        whelp_form.born_result, str(form.get("collar") or ""), str(form.get("oz") or ""),
+        str(form.get("sex") or ""), WHELP_DAM, WHELP_SIRE)
     return HTMLResponse(body, status_code=status)
 
 

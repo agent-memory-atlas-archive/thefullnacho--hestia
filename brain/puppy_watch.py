@@ -89,7 +89,11 @@ def pup_alerts(pup: str, series: list[dict], age_days: int, today: dt.date) -> l
 
     alerts = []
     latest = days[-1]
-    birth = next((d for d in days if d["source"] == "birth"), days[0])
+    # From the FULL series, not the day-collapsed one: a pup weighed on the day it was born
+    # has its birth row collapsed away by that same-day weighing, and looking only at `days`
+    # would silently disable the below-birth-weight rule for exactly the pups it matters
+    # most for.
+    birth = next((d for d in series if d["source"] == "birth"), days[0])
     peak = max(days, key=lambda d: d["grams"])
 
     if latest["date"] != today.isoformat():

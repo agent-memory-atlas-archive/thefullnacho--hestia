@@ -30,6 +30,10 @@ When a puppy is born ("Lily had a pup, 6 oz, male, by Bodhi"):
    `unit` (oz/g/lb/kg). Use this and not a plain `log`: `weigh` stores the number in grams,
    which is what `puppy_watch` compares day over day. A weight written into free text is
    readable by a person and invisible to the watcher.
+5. There is a form at `/whelp` that does all of this without you, and it is the preferred
+   path when the operator has a pup in one hand. If a name will not resolve, or anything at
+   all is uncertain, say so and point at the form. Never answer "logged" unless the tool
+   returned a confirmation.
 
 ## "Is the pup gaining / is it fading?" — the weight curve
 1. `records` `entity` on the pup shows its recent weighings. Answer from the numbers, and

@@ -31,4 +31,7 @@ keeping the records straight (litters and individual puppies live in `records`).
   note — `puppy_watch` reads those numbers twice a day and cannot read prose.
 - The fading-pup alerts are a timer doing arithmetic, not your judgement. Don't recompute a
   curve in your head or decide a pup is fine; report the weights and the direction.
+- The `/whelp` board is the fallback for capture. Offer it whenever a name is ambiguous, or
+  when the operator is clearly mid-whelp: it writes straight to records and cannot claim a
+  write it did not make.
 - Names like Lily, Bodhi, Fiona resolve from the roster — use them as-is.

@@ -67,7 +67,7 @@ PHOTO_EVERY_DAYS = 7
 CUP_DEPTH_MM = 50
 
 
-def _page(body: str, title: str = "Hestia") -> str:
+def _page(body: str, title: str = "Hestia", extra_css: str = "") -> str:
     # One shared shell: big tap targets and large text, meant to be read at arm's length
     # outdoors or read once and dismissed, not a UI anyone lingers in.
     return f"""<!doctype html>
@@ -102,8 +102,14 @@ def _page(body: str, title: str = "Hestia") -> str:
   .err {{ background: #5a1010; color: #ffb3b3; padding: 14px; border-radius: 10px; }}
   .meta {{ color: #999; font-size: 0.95rem; margin-top: 6px; }}
   .due {{ border-top: 1px solid #333; margin-top: 28px; padding-top: 8px; }}
+{extra_css}
 </style></head>
 <body>{body}</body></html>"""
+
+
+# The same shell for the other no-LLM capture forms (whelp_form), so every hands-busy page
+# in this house looks and behaves identically: big targets, large text, one screen.
+page = _page
 
 
 def position_slug(name: str) -> str:

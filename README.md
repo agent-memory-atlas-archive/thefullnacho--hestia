@@ -51,6 +51,10 @@ the long version; [MEMORY-DESIGN.md](MEMORY-DESIGN.md) covers the memory plan.)
   weight, no gain for two days, still under birth weight, or off its own peak. The earliest
   sign of a fading pup is a number that stops going up, so a number nobody took is an alert
   of its own
+- A whelping board at `/whelp` (`brain/whelp_form.py`): the litter as a row of coloured
+  collar buttons, a weight box on each, and a birth form. No model in the path, because at
+  3am every name in the house is one the model has never heard, and that is exactly when it
+  says "logged" over an empty table
 - 23:45 — the nightly house journal writes itself from the day's records, and the household
   almanac page regenerates (`brain/journal.py`, `brain/almanac.py`); "how late was the last
   freeze this year?" is answerable by voice
