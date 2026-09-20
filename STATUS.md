@@ -61,6 +61,23 @@ keep water off an aluminium antenna and it turned out to also survive a trimmer.
 sticker would have died silently, and a tag that no longer reads looks exactly like a stake
 nobody has walked out to yet.
 
+The VPN kill-switch container had been reporting unhealthy for 93 days and nobody had read it
+as anything but a stale healthcheck. It was not. Gluetun's DNS-over-TLS to Cloudflare was being
+reset by the Proton exit, and the queries that failed were tracker announces, so qBittorrent
+was intermittently unable to resolve its trackers. `DOT=off` now puts DNS in plaintext inside
+the tunnel, which is the same privacy posture with one fewer handshake to be refused.
+
+The worse problem was underneath. The healthcheck dialled `cloudflare.com:443` and
+`github.com:443` by name, so a DNS hiccup read as a dead tunnel, and qBittorrent has
+`depends_on: condition: service_healthy`. Gluetun had never once reported healthy, so **any
+reboot of the relay would have left qBittorrent permanently down**, which the first `compose up`
+demonstrated by refusing to start it. The healthcheck now dials raw IPs. Failing streak went
+from 1,611,627 to 0, and the kill-switch verified intact on both sides of the change.
+
+This is `stale_sensors` again, in the rack rather than the garden: a reading that is confidently
+wrong is worse than one that is missing, and a status that has said the same thing for three
+months is not a status. The tunnel was fine the whole time, which is exactly why nobody looked.
+
 ### In flight
 
 - Lily is day 57. The window is 2026-09-20 to 09-30, due around the 25th. Twice-daily temps
@@ -79,6 +96,11 @@ nobody has walked out to yet.
 - AGPL and the commercial fork are unresolved. Public auditability is claimed as a
   differentiator, and a closed fork would remove it. Unblocking that is cheap only until the
   first outside pull request is merged.
+- Three things found in the relay's compose file and deliberately not touched at the time: a
+  plaintext WireGuard private key inline rather than in an env file, two literal `/path/to/...`
+  placeholder volume paths that now hold three months of real qBittorrent config, and the fact
+  that gluetun's healthcheck is now a single point of failure for qBittorrent ever starting.
+  None are urgent, all are mine to do, none belong in the operator's queue.
 - Multilingual is understood and deliberately not scheduled. Whisper and the resident model
   already handle other languages; the harness does not. Skill routing matches whole English
   trigger words, so a non-English request scopes to nothing and the model sees every tool at
