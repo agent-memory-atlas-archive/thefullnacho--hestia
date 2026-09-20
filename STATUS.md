@@ -7,6 +7,110 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-09-19 - the kennel gets a watcher, a board, and a number that cannot hide in prose
+
+A question that should have been a lookup came back as an error. "When did Lily's pregnancy
+start" assembled to 31718 bytes against a 31488-byte ceiling and answered with the
+shorten-your-request message instead of the due date, while a longer phrasing of the same
+question worked. The cause was not memory or records: `whelping` was the only skill without a
+`tools:` allow-list, so every breeding question shipped all eleven tool schemas, 16KB, over
+half the budget. Longer phrasings only passed because a word like "record" happened to trip the
+records intent regex and scope it down. Scoping the skill took the same question to 21429
+bytes. Another phrasing was passing at 30550, about 900 bytes from the same failure, so this
+was not one broken question but a whole domain running with no headroom.
+
+Pregnancy is confirmed in the records now, and confirmed as what it actually is: the operator
+never took her to a vet, he could see it and can now feel the puppies. Logged as a health event
+with `vet_confirmed: false`, because a record that quietly implies a vet saw her is worse than
+no record.
+
+`puppy_watch.py` is the third deterministic watcher, after garden and pest. It runs 09:00 and
+20:00 while a litter is under three weeks old and pushes only when something needs a person:
+lost weight, no gain in two days, still under birth weight after day 3, down 10% from the pup's
+own peak, a pup never weighed, or a litter on the books with no pups logged against it. Silent
+otherwise, which is what let it be installed and proven a week before the whelp instead of
+written the night of.
+
+The watcher needed a number to read, and that was the real missing half. Pup weights were
+routed to a free-text health event, which a person can read and no watcher can. `records` gains
+a `weigh` action storing grams the way `harvest` already does; older free-text weights are
+parsed as a fallback and the birth weight is day 0, so an existing litter is not invisible to
+the curve. Two bugs surfaced in the wiring, both of which would have cost weights on the night
+it mattered: a birth written with a microsecond timestamp string-sorted after a same-day
+weighing, and the watcher looked for the birth row in the day-collapsed series, so a pup weighed
+on the day it was born silently lost its day-0 baseline.
+
+`/whelp` is a capture board, and it exists for the same reason `nfc.py` does. At 3am every name
+in this house is one the model has never heard, which is exactly the condition that produced a
+confident "logged" over an empty table on 2026-09-01. The litter is a row of coloured collar
+chips with a weight box on each, plus a birth form that takes a collar colour, a birth weight
+and a sex. The colour is the pup's name until someone picks a real one. Identification is the
+collar, not a tag: an NFC disc on a six-ounce neonate was considered and rejected, since the
+collar already disambiguates and a 25mm tag is a quarter of the circumference of that neck.
+
+Also fixed from the field: the weekly photo button did nothing when tapped on a phone. A styled
+`input[type=file]` on iOS draws only a small native control inside whatever box the CSS makes,
+so a full-width dark box is mostly dead pixels. The label is the tap target now, `required` is
+gone from a clipped input where a validation error cannot be focused or shown, and there is a
+library fallback that drops `capture`, which is the attribute Safari silently ignores when
+camera permission for the site has been denied.
+
+A weedeater took the top off one stake. Everything from the tag down survived and still scans,
+because the tag sits in a recess under a cap rather than on the surface. That pocket is there to
+keep water off an aluminium antenna and it turned out to also survive a trimmer. A surface
+sticker would have died silently, and a tag that no longer reads looks exactly like a stake
+nobody has walked out to yet.
+
+### In flight
+
+- Lily is day 57. The window is 2026-09-20 to 09-30, due around the 25th. Twice-daily temps
+  are the operator's, the watcher handles the weights once pups exist.
+- Grant funding is closed as a channel. NLnet declined after roughly seven months, FUTO never
+  replied in 78 days on a no-deadline track whose stated process is "email us and we guide
+  you", and the hackathon did not place. The canonical ledger records all three.
+- The commercial direction is an on-premises property ledger sold through custom-install
+  integrators, not a voice assistant and not a control system. It does not actuate, which keeps
+  liability near zero and keeps it out of the driver business. Two positioning corrections
+  landed: Nines already ships a self-hosted container, so "nobody is on-prem" is wrong, though
+  their own docs say the self-hosted build loses the cloud-dependent features. And OvrC is
+  owned by Control4's parent, so device-health monitoring is already bundled for those dealers.
+  The defensible line is narrower and true: device-up monitoring is not semantic-truth
+  monitoring. OvrC says the device is online. It cannot say the device is online and lying.
+- AGPL and the commercial fork are unresolved. Public auditability is claimed as a
+  differentiator, and a closed fork would remove it. Unblocking that is cheap only until the
+  first outside pull request is merged.
+- Multilingual is understood and deliberately not scheduled. Whisper and the resident model
+  already handle other languages; the harness does not. Skill routing matches whole English
+  trigger words, so a non-English request scopes to nothing and the model sees every tool at
+  once. It is a trigger vocabulary per language plus a voice per language, not a translation
+  pass.
+
+### Next concrete action
+
+Add a contribution policy or CLA to the repo. It is an hour, and it is the only item on this
+list whose cost rises permanently the moment someone else's code is merged, which matters now
+that the forum post is drawing stars.
+
+Then, in order: the Peach stake reprint, since it stands in mown grass because that guild has
+no bed cut yet `[non-production]`; four emails to shoreline integrators on a Tuesday or
+Wednesday morning, asking about their gaps rather than pitching `[non-production]`; and a
+one-page call sheet to go with them. The camera and ledger work waits on what those
+conversations say. Nothing about the property ledger gets built before an integrator has said
+out loud what breaks in their week.
+
+### Non-production, queued
+
+- `[non-production]` Reprint the Peach stake post and move the tag across, then re-site it out
+  of the trimmer path. Properly means cutting the peach bed.
+- `[non-production]` Bookmark `/whelp` to the phone home screen, then delete the handoff file,
+  which carries the live token.
+- `[non-production]` Retest the weekly photo button at a stake, and report whether the camera
+  button worked or whether the library fallback was needed. Those are different diagnoses.
+- `[non-production]` Reply in the HA forum thread to the multilingual question.
+- `[non-production]` Four emails to Tier 1 shoreline integrators, Tuesday or Wednesday morning.
+- `[non-production]` One integrator call or showroom visit. This is the n=1 on the whole
+  commercial direction.
+
 ## 2026-09-17 - the soil sensors get a check that notices when they stop telling the truth
 
 A blog-post data pull went looking for a pre-drip contrast week and found six days of frozen
