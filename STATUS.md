@@ -1253,3 +1253,14 @@ timers and row comparisons, never the model.
   it out.
 - `[non-production]` Passwordless sudo across the boxes. Scoped NOPASSWD for container and
   service control is the lighter option.
+
+
+## 2026-09-21: Voice satellite connection restored
+
+Corrected a stale ESPHome host address after a DHCP lease change. Backed up the
+Home Assistant configuration before the edit and restarted Home Assistant. The
+satellite returned to `idle`; the local web endpoint returned HTTP 200. No
+application code changed.
+
+Next action: `[non-production]` At 12:00, verify the router DHCP reservation and
+try a spoken request. Operator actions are recorded in the central queue.
