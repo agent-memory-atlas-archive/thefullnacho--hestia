@@ -40,7 +40,7 @@ bulk-touched. Control those one at a time, by name.
 | `brain/nfc.py`, `brain/whelp_form.py` | No-LLM capture surfaces: plain forms that POST straight to the stores. **Never** route these through the model |
 | `brain/*_store.py` | SQLite stores — records, memory, reminders |
 | `brain/voice/` | Whisper STT, Chatterbox-Turbo TTS, Piper CPU fallback. Separate venv and pyproject |
-| `deploy/systemd/` | Units and timers: brain, ollama, briefing, journal, reminders, garden-watch, puppy-watch, backup, whisper, chatterbox, piper |
+| `deploy/systemd/` | Units and timers: brain, ollama, briefing, journal, reminders, garden-watch, puppy-watch, box-watch, backup, whisper, chatterbox, piper |
 | `benchmarks/`, `brain/eval_*.py` | Model evaluation. `MODEL_EVAL.md` records results |
 
 Modules in `brain/` are flat and import each other flatly (`import config`, `import records_store`)

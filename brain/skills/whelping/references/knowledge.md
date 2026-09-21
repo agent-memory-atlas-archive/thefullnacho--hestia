@@ -39,7 +39,8 @@ names, AKC numbers, DOBs, and litter counts from there, not from here. In brief:
 - Air at pup height on the heated side: **~90°F week 1** (from the last litter, matches the
   usual 85–90), then about **80°F weeks 2–3** and **75°F by week 4** (general guidance, not
   yet confirmed here).
-- The kennel box display and HA read this. Week-1 alert: above 93°F or below 82°F.
+- The kennel box shows this; `box_watch` alerts outside 82–93°F in week 1, 75–88 weeks
+  2–3, 68–83 weeks 4–5.
 - The pups are the real thermometer: piled on each other = cold, spread away from the
   heat = too hot.
 

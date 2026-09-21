@@ -1,0 +1,12 @@
+[Unit]
+Description=Hestia box watch — every 2 minutes (silent unless a litter is young and the box is out of range)
+
+[Timer]
+# Every two minutes because an overheating box is a minutes problem, not a morning one. The
+# run is silent and skips HA entirely when no litter is inside the watch window, so this can
+# stay enabled between litters.
+OnCalendar=*:0/2
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

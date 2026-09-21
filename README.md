@@ -51,6 +51,10 @@ the long version; [MEMORY-DESIGN.md](MEMORY-DESIGN.md) covers the memory plan.)
   weight, no gain for two days, still under birth weight, or off its own peak. The earliest
   sign of a fading pup is a number that stops going up, so a number nobody took is an alert
   of its own
+- Whelping-box watch (`brain/box_watch.py`): a Heltec board by the box reads a Govee
+  thermometer in it over Bluetooth (`deploy/esphome/`), and a two-minute timer compares the
+  reading to the band for the litter's age in days, taken from its whelp date in records. Too
+  hot, too cold, or no reading at all each push after a few minutes. Silent between litters
 - A whelping board at `/whelp` (`brain/whelp_form.py`): the litter as a row of coloured
   collar buttons, a weight box on each, and a birth form. No model in the path, because at
   3am every name in the house is one the model has never heard, and that is exactly when it

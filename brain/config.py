@@ -42,6 +42,8 @@ GARDEN_STATE = Path(os.environ.get("GARDEN_STATE") or _STATE_HOME / "hestia" / "
 # Puppy-watch alert dedupe, keyed by date. Like GARDEN_STATE and unlike the records it
 # reads, this is disposable: losing it costs one repeated notification, never a weight.
 PUPPY_STATE = Path(os.environ.get("PUPPY_STATE") or _STATE_HOME / "hestia" / "puppy_watch.json")
+# Box-watch alert state (current status, since when, last push). Disposable the same way.
+BOX_STATE = Path(os.environ.get("BOX_STATE") or _STATE_HOME / "hestia" / "box_watch.json")
 # Pest-watch season state (biofix, cumulative GDD, per-season alert dedupe). Deliberately NOT
 # in the nightly backup: it's fully re-derivable — a fresh run re-finds the biofix and
 # back-fills GDD from the archive, and already-open windows re-mark silently.

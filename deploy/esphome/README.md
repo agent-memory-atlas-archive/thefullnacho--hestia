@@ -17,8 +17,8 @@ switches to "No reading for N min". A dead coin cell cannot leave a stale number
 current.
 
 There are no temperature thresholds on the board. Safe box temperatures change week by week
-after whelping, so they belong in HA automations, where they can be changed without
-reflashing.
+after whelping, so they live in `brain/box_watch.py`, which reads the litter's age from
+records and alerts from there. Changing a band never needs a reflash.
 
 ### Flashing
 
