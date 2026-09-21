@@ -32,6 +32,17 @@ names, AKC numbers, DOBs, and litter counts from there, not from here. In brief:
   limp, not nursing, or constantly crying needs intervention.
 - Eyes open ~10–14 days; nothing should be forced before that.
 
+## Box temperature (our house practice)
+- Heating pad under ~2/3 of the floor on its own thermostat at **85°F**; the rest unheated
+  so pups can crawl off it. Lily runs hot and needs that cool side too.
+- Heat lamp supplements from outside the box, hung where it can't fall in.
+- Air at pup height on the heated side: **~90°F week 1** (from the last litter, matches the
+  usual 85–90), then about **80°F weeks 2–3** and **75°F by week 4** (general guidance, not
+  yet confirmed here).
+- The kennel box display and HA read this. Week-1 alert: above 93°F or below 82°F.
+- The pups are the real thermometer: piled on each other = cold, spread away from the
+  heat = too hot.
+
 ## Red flags — say to call the vet NOW (don't coach through these)
 - **Hard straining for more than ~30–60 minutes with no puppy**, or **more than ~2–4
   hours between puppies** when more are expected.
