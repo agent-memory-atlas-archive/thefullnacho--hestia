@@ -25,11 +25,15 @@ reflashing.
 ```bash
 cp secrets.yaml.example secrets.yaml      # then fill it in (2.4 GHz Wi-Fi only)
 cd deploy/esphome
-uvx esphome run kennel-box.yaml --device /dev/ttyUSB0   # first flash, over USB
-uvx esphome run kennel-box.yaml                         # later flashes, over Wi-Fi
+uvx --from esphome==2025.12.7 esphome run kennel-box.yaml --device /dev/ttyUSB0   # first flash, over USB
+uvx --from esphome==2025.12.7 esphome run kennel-box.yaml                         # later flashes, over Wi-Fi
 ```
 
 Find the sensor's MAC with `bluetoothctl --timeout 20 scan on | grep GVH5075`.
+
+ESPHome is pinned to 2025.12.7 to match Home Assistant 2025.12. ESPHome 2026.x stopped sending
+the `object_id` that HA 2025.12 builds entity unique IDs from, so every sensor arrives with the
+same ID and HA keeps only the first. Move the pin when HA is upgraded.
 
 ### Adding to HA
 

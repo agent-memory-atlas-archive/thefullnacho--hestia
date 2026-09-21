@@ -3,7 +3,9 @@
 # the OLED shows the box even when Home Assistant is down, and HA gets one copy of each number.
 # No Govee app, no Govee cloud: the H5075 broadcasts in the clear and this just listens.
 #
-# Flash:   cd deploy/esphome && uvx esphome run kennel-box.yaml --device /dev/ttyUSB0
+# Flash:   cd deploy/esphome && uvx --from esphome==2025.12.7 esphome run kennel-box.yaml --device /dev/ttyUSB0
+# Pinned to HA's release era: HA 2025.12 keys entities on the object_id that ESPHome 2026.x
+# stopped sending, so a newer build gives every sensor the same unique ID and HA keeps one.
 # Secrets: secrets.yaml (gitignored), shape in secrets.yaml.example
 
 esphome:
@@ -23,10 +25,9 @@ api:
   encryption:
     key: !secret kennel_api_key
 
-# Uploads reuse the API key and must be encrypted; no separate OTA password.
 ota:
   - platform: esphome
-    encryption:
+    password: !secret kennel_ota_password
 
 # No fallback hotspot: a board that loses Wi-Fi should sit quietly and keep showing the
 # box on its screen, not open an access point next to the dogs.
@@ -114,7 +115,8 @@ interval:
             id(box_humidity).publish_state(NAN);
           }
 
-# The V3 powers its OLED from Vext, which is switched on by pulling GPIO36 low.
+# The V3 powers its OLED from Vext, which is switched on by pulling GPIO36 low. ESPHome warns
+# that GPIO36 is a PSRAM pin on S3R8 chips; the V3's ESP32-S3FN8 has no PSRAM, so it is free.
 switch:
   - platform: gpio
     id: oled_power
