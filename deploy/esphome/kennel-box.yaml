@@ -1,0 +1,160 @@
+# Kennel box: a Heltec WiFi LoRa 32 V3 sitting by the whelping box, reading the Govee H5075
+# there over Bluetooth. It decodes the sensor itself rather than acting as a plain proxy, so
+# the OLED shows the box even when Home Assistant is down, and HA gets one copy of each number.
+# No Govee app, no Govee cloud: the H5075 broadcasts in the clear and this just listens.
+#
+# Flash:   cd deploy/esphome && uvx esphome run kennel-box.yaml --device /dev/ttyUSB0
+# Secrets: secrets.yaml (gitignored), shape in secrets.yaml.example
+
+esphome:
+  name: kennel-box
+  friendly_name: Kennel box
+
+esp32:
+  board: heltec_wifi_lora_32_V3
+  framework:
+    type: esp-idf
+
+# The V3's USB port goes through a CP2102 on UART0, not the S3's native USB.
+logger:
+  hardware_uart: UART0
+
+api:
+  encryption:
+    key: !secret kennel_api_key
+
+# Uploads reuse the API key and must be encrypted; no separate OTA password.
+ota:
+  - platform: esphome
+    encryption:
+
+# No fallback hotspot: a board that loses Wi-Fi should sit quietly and keep showing the
+# box on its screen, not open an access point next to the dogs.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+globals:
+  # millis() of the last good reading; 0 means none since boot
+  - id: last_seen
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+# H5075 manufacturer data (company 0xEC88), after the company ID:
+#   [0] 0x00  [1..3] big-endian packed value  [4] battery %  [5] 0x00
+# packed = temp_c * 10000 + humidity * 10, bit 23 set when the temperature is negative.
+# Same decode as Home Assistant's govee-ble parser; checked against a live packet
+# (03 f5 9c -> 25.9 C, 48.4 %).
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+  on_ble_manufacturer_data_advertise:
+    - mac_address: !secret govee_box_mac
+      manufacturer_id: "EC88"
+      then:
+        - lambda: |-
+            if (x.size() < 5) return;
+            uint32_t raw = (uint32_t(x[1]) << 16) | (uint32_t(x[2]) << 8) | x[3];
+            float sign = 1.0f;
+            if (raw & 0x800000) {
+              raw ^= 0x800000;
+              sign = -1.0f;
+            }
+            id(box_temp).publish_state(sign * (raw / 1000) / 10.0f);
+            id(box_humidity).publish_state((raw % 1000) / 10.0f);
+            id(box_battery).publish_state(x[4] & 0x7F);
+            id(last_seen) = millis();
+
+sensor:
+  - platform: template
+    id: box_temp
+    # the H5075 advertises every few seconds; HA does not need every one
+    filters:
+      - throttle_average: 30s
+    name: Box temperature
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never
+  - platform: template
+    id: box_humidity
+    filters:
+      - throttle_average: 30s
+    name: Box humidity
+    unit_of_measurement: "%"
+    device_class: humidity
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never
+  - platform: template
+    id: box_battery
+    filters:
+      - throttle: 1h
+    name: Box sensor battery
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: never
+  - platform: wifi_signal
+    name: Kennel box Wi-Fi signal
+    update_interval: 60s
+    entity_category: diagnostic
+
+# A dead sensor battery must not leave the last number standing as if it were current.
+# After 10 minutes of silence HA sees "unknown" and the screen says so.
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          if (id(last_seen) != 0 && millis() - id(last_seen) > 10 * 60 * 1000) {
+            id(box_temp).publish_state(NAN);
+            id(box_humidity).publish_state(NAN);
+          }
+
+# The V3 powers its OLED from Vext, which is switched on by pulling GPIO36 low.
+switch:
+  - platform: gpio
+    id: oled_power
+    pin: GPIO36
+    inverted: true
+    restore_mode: ALWAYS_ON
+    internal: true
+
+i2c:
+  sda: GPIO17
+  scl: GPIO18
+
+font:
+  - file: "gfonts://Roboto Condensed@700"
+    id: font_big
+    size: 30
+    glyphs: "0123456789.-°F "
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 12
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    reset_pin: GPIO21
+    contrast: 50%
+    update_interval: 5s
+    lambda: |-
+      if (id(last_seen) == 0) {
+        it.print(64, 26, id(font_small), TextAlign::TOP_CENTER, "Waiting for sensor");
+        return;
+      }
+      uint32_t age_min = (millis() - id(last_seen)) / 60000;
+      if (age_min >= 10) {
+        it.printf(64, 14, id(font_small), TextAlign::TOP_CENTER, "No reading for %u min", age_min);
+        it.print(64, 34, id(font_small), TextAlign::TOP_CENTER, "Check sensor battery");
+        return;
+      }
+      float temp_f = id(box_temp).state * 9.0f / 5.0f + 32.0f;
+      it.printf(64, 4, id(font_big), TextAlign::TOP_CENTER, "%.1f°F", temp_f);
+      it.printf(64, 48, id(font_small), TextAlign::TOP_CENTER, "%.0f%% RH   batt %.0f%%",
+                id(box_humidity).state, id(box_battery).state);
