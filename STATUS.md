@@ -7,6 +7,51 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-09-21 - the whelping box gets a thermometer that answers to the litter's age
+
+Lily is inside her window (due 2026-09-25) and the box is built: pad on its own thermostat at
+85 under two thirds of the floor, the heat lamp hung outside the box, the last third unheated
+so the pups and Lily can move off the heat. Until today the only record of what the box
+should read was memory from the last litter.
+
+- **Kennel box** (`deploy/esphome/`). A Heltec WiFi LoRa 32 V3 by the box listens for the
+  Govee H5075 inside it over Bluetooth and decodes the broadcasts itself, so its OLED shows
+  the box even when HA is down and no Govee app or cloud is involved. The decode was checked
+  against a live packet before it was written. Ten minutes of silence blanks the numbers
+  instead of leaving a stale one standing.
+- **Version skew, found the hard way.** Built on ESPHome 2026.9, HA 2025.12 registered one
+  entity out of four: the newer firmware no longer sends the `object_id` that HA 2025.12
+  builds unique IDs from, so every sensor arrived as `<mac>-sensor-` and HA kept the first.
+  ESPHome is now pinned to 2025.12.7 and the README says to move the pin with HA. All four
+  sensors are in HA with real IDs.
+- **Box watch** (`brain/box_watch.py`, `hestia-box-watch.timer`, every 2 min). Reads the box
+  temperature from HA and the litter's age from its whelp date in records, and compares them
+  to the week's band: 82-93F week one, 75-88 weeks two and three, 68-83 weeks four and five.
+  Too hot or too cold for five minutes pushes and repeats every half hour, a silent sensor
+  pushes on sight, and recovery is announced once. The plan was to copy the whelp date into an
+  HA helper, and that was dropped: the copy would have synced twice a day, which leaves the
+  first hours after a whelp on the wrong answer. It is silent between litters and does not
+  touch HA when there is no litter. 10 tests; the full suite passes; a live read of the real
+  sensor parses (72.3F, which is correctly "cold" for a day-0 box with the lamp off); a test
+  push reached the phone.
+- **Whelping notes** now carry the box temperatures as house practice, week one from the last
+  litter and later weeks marked as general guidance until this litter confirms them. The
+  knowledge file is injected on every whelping turn, so the addition was checked against the
+  prompt budget; it still clears with about 9KB to spare.
+
+In flight: nothing half-built. The watch arms itself when the first pup is logged.
+
+Next concrete action: none for the build. When Lily whelps, log the first pup on `/whelp`
+right away, because that row is what arms the box watch.
+
+- `[non-production]` When Lily whelps, log the first pup on `/whelp` straight away.
+- `[non-production]` Replace the heat lamp clamp with a chain from a joist hook or a weighted
+  stand, plus a separate safety cable.
+- Open, not started: switching the lamp off automatically needs a locally controlled plug.
+  Govee plugs are cloud-only, so that is a purchase decision first.
+
+---
+
 ## 2026-09-19 - the kennel gets a watcher, a board, and a number that cannot hide in prose
 
 A question that should have been a lookup came back as an error. "When did Lily's pregnancy
