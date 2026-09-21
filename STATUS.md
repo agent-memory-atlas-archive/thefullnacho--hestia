@@ -1264,3 +1264,6 @@ application code changed.
 
 Next action: `[non-production]` At 12:00, verify the router DHCP reservation and
 try a spoken request. Operator actions are recorded in the central queue.
+
+Operator confirmed the router DHCP reservation is now saved. The remaining
+`[non-production]` action is a spoken request at 12:00 to confirm end-to-end voice.
