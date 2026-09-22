@@ -46,6 +46,8 @@ the long version; [MEMORY-DESIGN.md](MEMORY-DESIGN.md) covers the memory plan.)
 - "Vaccinated the dogs today" / "got a new puppy, Biscuit, she's a corgi" → real entities and a
   dated event log in SQLite
 - Growing-degree-day pest watch for the garden (`brain/pest_watch.py`, biofix observed in the field)
+- A drain-the-rain-barrels nudge on the season's first forecast freeze (`brain/garden_watch.py`),
+  said when it first appears and again the morning before, then silent for the winter
 - Neonatal puppy watch for the kennel (`brain/puppy_watch.py`): pup weights are logged as
   grams, and a twice-daily timer does the arithmetic a person is not doing at 3am — lost
   weight, no gain for two days, still under birth weight, or off its own peak. The earliest

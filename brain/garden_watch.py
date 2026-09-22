@@ -7,6 +7,10 @@ there's something to act on:
                             battery at or under SOIL_BATT_LOW. Checked FIRST, because every
                             line below it is only as good as the readings it came from
   - Frost/freeze coming   — forecast low <= FROST_F within the horizon
+  - Drain the rain barrels — the season's first freeze in the forecast, said twice (when it
+                            first appears, and the morning before) and then never again that
+                            winter. A full 55-gallon barrel that freezes can split; an
+                            overflowing one in summer costs nothing, so only the freeze is nudged
   - A bed is dry          — soil <= DRY_PCT AND no meaningful rain coming (skip if rain due)
   - Heavy rain coming     — a day >= HEAVY_RAIN_IN, a heads-up to skip watering
 
@@ -186,6 +190,41 @@ def _save_state(state: dict) -> None:
         json.dump(state, f, indent=2)
 
 
+def _season(day: dt.date) -> int:
+    """The cold season a date belongs to, named by the year it starts (Jul 1 to Jun 30)."""
+    return day.year if day.month >= 7 else day.year - 1
+
+
+def barrel_alert(rows: list[dict], today: dt.date, persist: bool) -> str | None:
+    """Drain-the-barrels nudge for the season's first freeze, or None.
+
+    Two nudges a season at most: the first morning a freeze shows up in the forecast, which
+    leaves days to plan, and the morning before it, in case the first was swiped away. After
+    that it stays quiet until next season. A reminder that fired every cold morning until April
+    would be about barrels already drained, and would teach the user to ignore it."""
+    ev = next((r for r in rows if r["lo"] <= weather.FREEZE_F), None)
+    if not ev:
+        return None
+    state = _load_state()
+    season = _season(today)
+    mine = state.get("_barrels", {})
+    if mine.get("season") != season:
+        mine = {"season": season, "sent": []}
+    days_out = (dt.date.fromisoformat(ev["date"]) - today).days
+    due = [n for n in ("first", "eve") if n not in mine["sent"] and (n == "first" or days_out <= 1)]
+    if not due:
+        return None
+    if days_out <= 1:
+        due = ["first", "eve"]  # one message covers both when the warning is already late
+    mine["sent"] = sorted(set(mine["sent"]) | set(due))
+    if persist:
+        state["_barrels"] = mine
+        _save_state(state)
+    return (f"Freeze {weather._nice_date(ev['date'])} (low {ev['lo']:.0f}°F): drain both rain "
+            f"barrels and turn the gutter diverter away, or a frozen barrel can split. Leave "
+            f"the pergola barrel's spigot open or tip it over, since it keeps catching runoff.")
+
+
 def saturated_alert(beds: list[tuple[str, float]], persist: bool) -> str | None:
     """Beds pegged >= SAT_PCT for SAT_DAYS consecutive *mornings*.
 
@@ -229,6 +268,10 @@ def build_alerts(persist: bool = False) -> list[str]:
         label = "Hard freeze" if ev["kind"] == "freeze" else "Frost"
         alerts.append(f"{label} coming {weather._nice_date(ev['date'])}: "
                       f"low {ev['lo']:.0f}°F — protect tender crops.")
+
+    barrels = barrel_alert(rows, dt.date.today(), persist)
+    if barrels:
+        alerts.append(barrels)
 
     try:
         beds = soil_beds()
