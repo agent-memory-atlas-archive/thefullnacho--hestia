@@ -4,8 +4,12 @@ Runs daily via a systemd user timer. Pulls soil moisture from Home Assistant and
 the forecast from the weather tool, then pushes a phone notification ONLY when
 there's something to act on:
   - A sensor is lying     — unavailable, reading 0%, frozen for SOIL_FLAT_HOURS, or a
-                            battery at or under SOIL_BATT_LOW. Checked FIRST, because every
-                            line below it is only as good as the readings it came from
+                            battery at or under SOIL_BATT_LOW that HA has heard from within
+                            BATT_FRESH_H. Checked FIRST, because every line below it is only
+                            as good as the readings it came from. The gateway pushes battery
+                            far less often than moisture, so an older voltage is not acted on
+                            (it may already have been swapped) and a battery set that stops
+                            refreshing entirely is reported as that, once
   - Frost/freeze coming   — forecast low <= FROST_F within the horizon
   - Drain the rain barrels — the season's first freeze in the forecast, said twice (when it
                             first appears, and the morning before) and then never again that
@@ -50,6 +54,8 @@ SAT_PCT = float(os.environ.get("GARDEN_SAT_PCT", "95"))  # waterlogged threshold
 SAT_DAYS = int(os.environ.get("GARDEN_SAT_DAYS", "2"))   # consecutive mornings to alert
 SOIL_FLAT_HOURS = int(os.environ.get("GARDEN_SOIL_FLAT_HOURS", "24"))  # unchanged this long = suspect
 SOIL_BATT_LOW = float(os.environ.get("GARDEN_SOIL_BATT_LOW", "1.3"))   # volts, WH51
+BATT_FRESH_H = float(os.environ.get("GARDEN_SOIL_BATT_FRESH_HOURS", "12"))  # older = not acted on
+BATT_STALL_H = float(os.environ.get("GARDEN_SOIL_BATT_STALL_HOURS", "48"))  # older = say so once
 STATE_PATH = str(config.GARDEN_STATE)
 RAIN_WINDOW_DAYS = 3  # "no rain coming" lookahead for the dry-bed test
 HORIZON = 7
@@ -77,6 +83,20 @@ def _soil_states() -> list[dict]:
     r = httpx.get(f"{HA_URL}/api/states", headers=_HDRS, timeout=15)
     r.raise_for_status()
     return r.json()
+
+
+def _reported_age_h(state: dict, now: dt.datetime | None = None) -> float | None:
+    """Hours since HA last heard this entity reported, or None when the state carries no
+    timestamp (test fixtures, and anything that predates `last_reported`)."""
+    stamp = state.get("last_reported") or state.get("last_updated")
+    if not stamp:
+        return None
+    try:
+        heard = dt.datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    now = now or dt.datetime.now(heard.tzinfo)
+    return (now - heard).total_seconds() / 3600
 
 
 def _channel(entity_id: str) -> str:
@@ -165,14 +185,31 @@ def stale_sensors() -> list[str]:
     # after. The battery entities are named `soilbattN` with no bed in them, so the channel
     # number is what ties a voltage to a bed.
     beds_by_channel = {_channel(s["entity_id"]): _bed_name(s) for s in moisture}
+    stalled: list[tuple[str, float, float]] = []
     for eid, s in sorted(battery.items()):
         try:
             volts = float(s["state"])
         except (TypeError, ValueError):
             continue
-        if volts <= SOIL_BATT_LOW:
-            where = beds_by_channel.get(_channel(eid)) or eid
-            out.append(f"Soil sensor battery low: {where} at {volts:.1f}V.")
+        if volts > SOIL_BATT_LOW:
+            continue
+        where = beds_by_channel.get(_channel(eid)) or eid
+        # The gateway pushes battery far less often than moisture, so a low voltage can be a
+        # day old and already fixed. Acting on it sends someone to swap a cell they swapped
+        # yesterday, which is the carried-forward failure again, one entity over.
+        age = _reported_age_h(s)
+        if age is not None and age > BATT_FRESH_H:
+            stalled.append((where, volts, age))
+            continue
+        out.append(f"Soil sensor battery low: {where} at {volts:.1f}V.")
+
+    # Said once, not per sensor: if the batteries have not refreshed in days while moisture
+    # keeps arriving, the silence is the thing to report, not the voltages behind it.
+    if stalled and max(a for _, _, a in stalled) > BATT_STALL_H:
+        oldest = max(a for _, _, a in stalled)
+        names = ", ".join(w for w, _, _ in stalled)
+        out.append(f"Battery readings have not refreshed in {oldest:.0f}h while moisture keeps "
+                   f"arriving ({names}). Low-battery alerts are paused until they do.")
     return out
 
 

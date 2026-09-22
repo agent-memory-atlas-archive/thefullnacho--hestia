@@ -11,6 +11,8 @@ these readings drive the B-hyve zone 4 valve.
 """
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
 
 import garden_watch
@@ -145,3 +147,44 @@ def test_staleness_leads_the_garden_alerts(monkeypatch):
     facts = briefing._garden_facts()
     assert facts and facts[0].startswith("ALERT (garden):")
     assert "Hot Peppers" in facts[0]
+
+
+# ----- battery readings that are older than the fix ------------------------
+
+def _aged(state: dict, hours: float) -> dict:
+    """The same state, but last reported `hours` ago."""
+    heard = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=hours)
+    return {**state, "last_reported": heard.isoformat()}
+
+
+def test_a_fresh_low_battery_is_still_an_alert(soil):
+    states = _healthy()
+    states[-1] = _aged(_batt(8, 1.1), 2)
+    soil(states)
+    out = garden_watch.stale_sensors()
+    assert len(out) == 1 and "battery low" in out[0] and "1.1V" in out[0]
+
+
+def test_a_day_old_low_battery_is_not_acted_on(soil):
+    """The cell may already have been swapped; the entity just hasn't reported since."""
+    states = _healthy()
+    states[-1] = _aged(_batt(8, 1.1), 30)
+    soil(states)
+    assert garden_watch.stale_sensors() == []
+
+
+def test_batteries_that_stop_refreshing_are_reported_once(soil):
+    states = [_moisture(c, b, 40 + c) for c, b in BEDS.items()]
+    states += [_aged(_batt(c, 1.1), 60) for c in BEDS]
+    soil(states)
+    out = garden_watch.stale_sensors()
+    assert len(out) == 1
+    assert "have not refreshed in 60h" in out[0] and "paused" in out[0]
+
+
+def test_a_battery_state_with_no_timestamp_is_trusted(soil):
+    """Anything without `last_reported` is taken at face value rather than silently dropped."""
+    states = _healthy()
+    states[-1] = _batt(8, 1.1)
+    soil(states)
+    assert "battery low" in garden_watch.stale_sensors()[0]
