@@ -48,8 +48,20 @@ SILENT_MIN = int(os.environ.get("BOX_SILENT_MIN", "10"))    # matches the board'
 STATE_PATH = config.BOX_STATE
 
 # (through litter day, low F, high F)
+#
+# Week one was recalibrated 2026-09-24, during Lily's third litter, from 82-93 to 77-90. The
+# band is only ever as good as where the sensor sits, and this Govee does not sit at pup height
+# on the heated side: with the pad thermostat holding 90 it read 77.5, a 12F gap. So the old
+# band was steering a number measured somewhere cooler than the one `knowledge.md` specifies,
+# and chasing it drove the box from 101F overnight to 72F by morning. The operator now targets
+# 80 on this sensor, with pup behaviour and a camera on the box as the primary indicators, so
+# the floor moves under that target rather than above it. The ceiling tightens 93 -> 90 because
+# the pups broke away from the dam for relief overnight while the sensor still read inside the
+# old band: they were hotter than it claimed.
+#
+# If the Govee is moved, this band is wrong again. Re-derive it against the new position.
 BANDS = (
-    (7, 82.0, 93.0),    # week one: ~90 at pup height, confirmed from the last litter
+    (7, 77.0, 90.0),    # week one: calibrated to this sensor's position, operator targets 80
     (21, 75.0, 88.0),   # weeks two and three: ~80
     (35, 68.0, 83.0),   # weeks four and five: ~75
 )
