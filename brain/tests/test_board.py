@@ -106,3 +106,32 @@ def test_memory_column_appears_only_with_proposals_and_buttons_hit_first():
     board.render([], [], now, selected="memory:x", note="Bodhi is the sire.", hits=hits, memory=mem)
     assert [h["item"]["key"] for h in hits[:2]] == ["choice:promote", "choice:discard"]
     assert hits[2]["item"]["key"] == "memory:x"
+
+
+def test_old_rows_ask_keep_done_trash_and_keep_snoozes(tmp_path, monkeypatch):
+    q = tmp_path / "queue.md"
+    q.write_text(QUEUE)
+    monkeypatch.setattr(board, "BOARD_QUEUE", q)
+    monkeypatch.setattr(board.config, "BOARD_REVIEW_STATE", tmp_path / "review.json")
+    items = {i["title"]: i for i in board.read_queue(TODAY)}
+    old, young = items["Tailscale ACL restricting port 8730"], items["Check the marigold seed bag"]
+    assert old["choices"] == board.QUEUE_CHOICES and "choices" not in young
+
+    now = dt.datetime(2026, 9, 26, 9, 0)
+    assert board.complete(old, "keep", now).startswith("Kept")
+    assert "choices" not in {i["title"]: i for i in board.read_queue(TODAY)}["Tailscale ACL restricting port 8730"]
+    later = TODAY + dt.timedelta(days=board.REVIEW_DAYS)
+    assert {i["title"]: i for i in board.read_queue(later)}["Tailscale ACL restricting port 8730"]["choices"]
+
+
+def test_trash_deletes_without_a_shipped_entry(tmp_path, monkeypatch):
+    q = tmp_path / "queue.md"
+    q.write_text(QUEUE)
+    monkeypatch.setattr(board, "BOARD_QUEUE", q)
+    monkeypatch.setattr(board.config, "BOARD_REVIEW_STATE", tmp_path / "review.json")
+    monkeypatch.setattr(board, "TRASH_LOG", tmp_path / "trashed.tsv")
+    old = {i["title"]: i for i in board.read_queue(TODAY)}["Tailscale ACL restricting port 8730"]
+    board.complete(old, "trash", dt.datetime(2026, 9, 26, 9, 0))
+    assert old["line"] in (tmp_path / "trashed.tsv").read_text()  # a misfire can be put back
+    text = q.read_text()
+    assert old["line"] not in text and "Tailscale" not in text.split("## Shipped")[1]

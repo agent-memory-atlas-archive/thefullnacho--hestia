@@ -21,7 +21,9 @@ The operator's queue is a markdown table the brain does not own. It is read from
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import io
+import json
 import os
 import re
 import sys
@@ -37,6 +39,7 @@ config.load_secrets()
 BOARD_QUEUE = Path(os.environ.get("BOARD_QUEUE") or config.DATA_DIR / "board-queue.md")
 HOME_CACHE_S = int(os.environ.get("BOARD_HOME_CACHE_S", "300"))  # HA + forecast reads, not per frame
 STALE_DAYS = 7          # queue items older than this carry their age on the board
+REVIEW_DAYS = int(os.environ.get("BOARD_REVIEW_DAYS", "14"))  # older rows ask "still real?"
 NIGHT = (22, 5)         # the character sleeps unless something is urgent
 
 SIZE = (1024, 758)      # landscape; the Kindle Paperwhite 1 panel is 758x1024 portrait
@@ -157,11 +160,50 @@ def queue_items(text: str, today: dt.date) -> list[dict]:
     return out
 
 
+# Rows past REVIEW_DAYS get Keep / Done / Trash instead of a plain two-tap done. The backlog
+# is what gets ignored while new work is handled as it arrives, and an old row is as likely to
+# be done-but-never-logged as it is to be dead. "Keep" snoozes the question for REVIEW_DAYS;
+# the snooze is keyed on the row's exact text, so an edited row is asked about afresh.
+QUEUE_CHOICES = (("Keep", "keep"), ("Done", "done"), ("Trash", "trash"))
+TRASH_LOG = config.BOARD_REVIEW_STATE.with_name("board_trashed.tsv")
+
+
+def _row_id(line: str) -> str:
+    return hashlib.sha256(line.encode()).hexdigest()[:16]
+
+
+def _reviews() -> dict:
+    try:
+        return json.loads(config.BOARD_REVIEW_STATE.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def due_for_review(item: dict, today: dt.date, reviews: dict) -> bool:
+    if item["age"] < REVIEW_DAYS:
+        return False
+    kept = reviews.get(_row_id(item["line"]))
+    return not kept or (today - dt.date.fromisoformat(kept)).days >= REVIEW_DAYS
+
+
+def keep_row(line: str, today: dt.date) -> None:
+    reviews = _reviews()
+    reviews[_row_id(line)] = today.isoformat()
+    config.BOARD_REVIEW_STATE.parent.mkdir(parents=True, exist_ok=True)
+    config.BOARD_REVIEW_STATE.write_text(json.dumps(reviews))
+
+
 def read_queue(today: dt.date) -> list[dict]:
     try:
-        return queue_items(BOARD_QUEUE.read_text(), today)
+        items = queue_items(BOARD_QUEUE.read_text(), today)
     except FileNotFoundError:
         return []
+    reviews = _reviews()
+    for item in items:
+        if due_for_review(item, today, reviews):
+            item["choices"] = QUEUE_CHOICES
+            item["detail"] = f"{item['title']} ({item['age']} days). Still real?"
+    return items
 
 
 # ── home ─────────────────────────────────────────────────────────────────────────────────
@@ -408,6 +450,8 @@ def _column(draw, x: int, y: int, w: int, bottom: int, label: str, items: list[d
         sub = item.get("sub") or ""
         if not home:
             sub = item["project"] + (f" · {item['age']}d" if item["age"] > STALE_DAYS else "")
+            if item.get("choices"):
+                sub += " · review"
         h = len(lines) * 26 + (22 if sub else 0) + 14
         if y + h > bottom - (reserve if i < len(items) - 1 else 0):
             break
@@ -541,26 +585,49 @@ def hit_at(hits: list[dict], bx: int, by: int) -> dict | None:
 
 # ── closing things from the board ────────────────────────────────────────────────────────
 
+def _exact_row(lines: list[str], line: str) -> int:
+    at = [i for i, ln in enumerate(lines) if ln == line]
+    if len(at) != 1:
+        raise ValueError("that row changed since the board was drawn")
+    return at[0]
+
+
+def _write(path: Path, lines: list[str]) -> None:
+    tmp = path.with_name(path.name + ".board-tmp")
+    tmp.write_text("\n".join(lines))
+    tmp.replace(path)
+
+
+def trash_queue_row(line: str, path: Path | None = None) -> str:
+    """Delete a row that should never have stayed: no Shipped entry, because nothing shipped.
+    It is one tap, so the row is appended to a trash log first and a misfire can be put back."""
+    path = (path or BOARD_QUEUE).resolve()
+    lines = path.read_text().split("\n")
+    at = _exact_row(lines, line)
+    TRASH_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with TRASH_LOG.open("a") as f:
+        f.write(f"{dt.datetime.now().isoformat(timespec='seconds')}\t{line}\n")
+    del lines[at]
+    _write(path, lines)
+    return title_of([c.strip() for c in line.strip().strip("|").split("|")][2])
+
+
 def close_queue_row(line: str, today: dt.date, path: Path | None = None) -> str:
     """Move one Open row to Shipped, reshaped to the Shipped table's three columns. Refuses
     unless the exact line is there once: a board frame can be minutes old, and a row that
     moved or changed since must not be guessed at."""
     path = (path or BOARD_QUEUE).resolve()
     lines = path.read_text().split("\n")
-    at = [i for i, ln in enumerate(lines) if ln == line]
-    if len(at) != 1:
-        raise ValueError("that row changed since the board was drawn")
+    at = _exact_row(lines, line)
     cells = [c.strip() for c in line.strip().strip("|").split("|")]
     project, title = cells[1], title_of(cells[2])
-    del lines[at[0]]
+    del lines[at]
     head = next((i for i, ln in enumerate(lines) if ln.lower().startswith("## shipped")), None)
     sep = next((i for i in range(head, len(lines)) if lines[i].startswith("|---")), None) if head is not None else None
     if sep is None:
         raise ValueError("no Shipped table to move it to")
     lines.insert(sep + 1, f"| {today.isoformat()} | {project} | {title} (closed from the board) |")
-    tmp = path.with_name(path.name + ".board-tmp")
-    tmp.write_text("\n".join(lines))
-    tmp.replace(path)
+    _write(path, lines)
     return title
 
 
@@ -577,6 +644,11 @@ def complete(item: dict, choice: str | None = None, now: dt.datetime | None = No
             return f"Discarded: {item['title']}"
         raise ValueError("keep or discard?")
     if item.get("done") == "queue":
+        if choice == "keep":
+            keep_row(item["line"], now.date())
+            return f"Kept: {item['title']}. Asking again in {REVIEW_DAYS} days"
+        if choice == "trash":
+            return f"Trashed: {trash_queue_row(item['line'])}"
         return f"Done: {close_queue_row(item['line'], now.date())}"
     if item.get("done") == "service":
         import records_store

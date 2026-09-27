@@ -11,6 +11,8 @@ WorkingDirectory=%h/hestia/brain
 ExecStart=%h/.local/bin/uv run --project %h/hestia/brain python %h/hestia/brain/board_push.py
 Restart=always
 RestartSec=15
+# systemd stops it with SIGTERM; that is a clean stop, not a failure worth a red unit
+SuccessExitStatus=143
 
 [Install]
 WantedBy=default.target
