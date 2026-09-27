@@ -49,6 +49,7 @@ from tool_contract import ToolResult, mutation, receipt, validate, read_call_fro
 import memory_store  # noqa: E402
 import nfc  # noqa: E402
 import whelp_form  # noqa: E402
+import board  # noqa: E402
 import note_taker  # noqa: E402
 import records_store  # noqa: E402
 import review_notes  # noqa: E402
@@ -826,6 +827,14 @@ async def maintenance_due():
     can never disagree (same move as /status vs. the `status` tool)."""
     rows = await asyncio.to_thread(records_store.due_assets)
     return JSONResponse({"count": len(rows), "assets": rows})
+
+
+@app.get("/board.png")
+def board_png(device: str = ""):
+    """The board as an image: queue + home, drawn by board.py. No model. Sync so the HA and
+    forecast reads behind it run in the threadpool, not on the event loop."""
+    return Response(content=board.png_bytes(device or None), media_type="image/png",
+                    headers={"Cache-Control": "no-store"})
 
 
 @app.get("/health")

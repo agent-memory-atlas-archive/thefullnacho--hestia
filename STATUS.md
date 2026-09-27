@@ -7,6 +7,55 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-09-26 - the board: the operator's to-dos and the home's state on a Kindle by the door
+
+The queue of jobs that need the operator had grown to 71 open rows, 54 of them over a week
+old, and none of it was visible without asking for it. The board makes it ambient: one e-ink
+page, always on, that shows what needs a person, split by the kind of attention it takes.
+
+- **Renderer** (`brain/board.py`). Four columns: HANDS and SCREEN come from the operator's
+  queue file (read through `BOARD_QUEUE`, default a symlink under the ignored `data/`), split
+  by the slot the row names, with physical keywords as the fallback. HOME is Hestia's own:
+  box watch, puppy watch, garden watch, due assets and reminders, each source failing alone.
+  MEMORY is the note-taker inbox and appears only while it holds proposals. Rows with a Done
+  date and rows that say when they start ("on or after", "Late November") stay off. A small
+  character carries the mood of the most urgent Home item; the art is a placeholder. No model
+  anywhere, the same rule as every watcher. `GET /board.png` serves it on the tailnet.
+- **The Kindle** is a jailbroken Paperwhite 1 on FW 5.6.1.1, 758x1024 at 212 DPI. USBNetwork
+  went on through the MR package installer after "Update Your Kindle" stayed greyed out, with
+  SSH over WiFi on its own passwordless key: the operator's personal key sits behind the
+  desktop keyring's passphrase prompt, which a service can never answer.
+- **Push and taps** (`brain/board_push.py`, `hestia-board-push.service`). The brain binds to
+  the tailnet and the Kindle is on the LAN, so the Kindle never calls in: this box holds an SSH
+  stream of the touch panel and sends each frame down the same multiplexed connection, drawn
+  with FBInk. Each push stops the stock Kindle UI (its status bar drew over the board) and
+  holds off the screensaver; a reboot restores both and the next push reclaims the panel.
+  Redraw every 5 minutes, partial refresh, one clean flash per hour. Taps are mapped from
+  three calibration taps on the real panel. One tap selects and says what a second will do;
+  a second tap within a minute moves a queue row to Shipped or logs a service on a due asset.
+  Watch alerts only explain themselves. Memory proposals get Keep and Discard buttons.
+- Used for real on the first night: two finished rows closed from the board, and the whole
+  memory inbox (13 proposals) answered, which collapsed the column.
+- 20 new tests; the full suite is 571 passing.
+- Carried from 2026-09-24, never written up: the box watch's week-one band widened to 77-90F
+  to match where the Govee actually sits, and the litter (seven pups, 2026-09-23) arms both
+  kennel watchers.
+
+In flight: nothing half-built. The service runs and reconnects on its own.
+
+Next concrete action: let a queue row name the record that finishes it, so an NFC scan that
+logs the job also closes the row. The catch-cup check was logged at the stake and then had
+to be closed again by hand on the board.
+
+- `[non-production]` Confirm the queue triage (pre-sort in the operator's notes).
+- `[non-production]` DHCP reservation for the Kindle on the router.
+- `[non-production]` KUAL, USBNetwork, enable at boot, now that key login is proven.
+- `[non-production]` Give the Kindle a spot on USB power: the screensaver is held off, so
+  battery alone will not last.
+- `[non-production]` Pick a direction for the board's character, to replace the placeholder.
+
+---
+
 ## 2026-09-21 - the whelping box gets a thermometer that answers to the litter's age
 
 Lily is inside her window (due 2026-09-25) and the box is built: pad on its own thermostat at

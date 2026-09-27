@@ -1,0 +1,243 @@
+"""Board push: draw the board on the Kindle and listen for taps, over SSH, from this box.
+
+The brain listens on the tailnet only and the Kindle lives on the LAN, so the Kindle never
+calls in. This box calls out: a long-lived SSH session streams the touch panel's raw events
+up, and each frame goes down in its own short session (multiplexed over one connection). The
+Kindle stays a dumb panel and the brain's network boundary does not move.
+
+Each push also takes the screen: it stops the stock Kindle UI (whose status bar otherwise
+draws over the board) and holds off the screensaver. Both are idempotent and both come back
+on any reboot, so a restarted Kindle is simply reclaimed on the next push.
+
+Taps, deterministic end to end:
+  - tap an item        → it is drawn inverted, and the foot of the board says what a second
+                         tap will do (or, for a watch alert, the full reason)
+  - tap it again       → within CONFIRM_S it is closed: a queue row moves to Shipped, a due
+                         asset logs a service. Watch alerts can't be closed, only read.
+  - tap anywhere else  → the selection clears; with nothing selected, it just redraws now
+
+Refresh: e-ink ghosts under partial updates, so a frame is a quiet partial refresh except the
+first of each hour, which flashes the panel clean.
+
+`BOARD_KINDLE_HOST` is an SSH host alias (default `kindle-board`) that lives in the
+operator's ~/.ssh/config with its key and address, so no LAN address is written here.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import hashlib
+import json
+import os
+import selectors
+import struct
+import subprocess
+import sys
+import time
+
+import config  # puts brain/ on sys.path + owns paths
+
+config.load_secrets()
+import board  # noqa: E402
+
+HOST = os.environ.get("BOARD_KINDLE_HOST", "kindle-board")
+STATE_PATH = config.BOARD_PUSH_STATE
+TIMEOUT_S = int(os.environ.get("BOARD_PUSH_TIMEOUT_S", "45"))
+EVERY_S = int(os.environ.get("BOARD_PUSH_EVERY_S", "300"))   # ambient, not an alarm
+CONFIRM_S = int(os.environ.get("BOARD_CONFIRM_S", "60"))     # a selection this old is dropped
+NOTE_S = int(os.environ.get("BOARD_NOTE_S", "20"))           # how long "Done: …" stays up
+TOUCH_DEV = "/dev/input/event0"                               # cyttsp on the Paperwhite 1
+
+_SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ControlMaster=auto",
+        "-o", "ControlPath=~/.ssh/cm-board-%r@%h:%p", "-o", "ControlPersist=600"]
+
+# Runs on the Kindle's busybox sh. /tmp is tmpfs, so frames don't wear the flash.
+_REMOTE = r"""
+export PATH="$PATH:/sbin:/usr/sbin:/mnt/us/usbnet/bin"
+cat > /tmp/board.png || exit 3
+if initctl status lab126_gui 2>/dev/null | grep -q running; then
+    stop lab126_gui >/dev/null 2>&1
+    sleep 3
+    FLASH=1
+fi
+lipc-set-prop com.lab126.powerd preventScreenSaver 1 >/dev/null 2>&1
+if [ "$FLASH" = 1 ] || [ "{flash}" = 1 ]; then
+    fbink -q -f -c -g file=/tmp/board.png
+else
+    fbink -q -g file=/tmp/board.png
+fi
+"""
+
+# struct input_event on 32-bit ARM: timeval (2 x u32), type u16, code u16, value s32
+_EVENT = struct.Struct("<IIHHi")
+EV_KEY, EV_ABS, BTN_TOUCH = 1, 3, 0x14A
+ABS_X, ABS_Y, ABS_MT_X, ABS_MT_Y = 0x00, 0x01, 0x35, 0x36
+
+
+def _load_state() -> dict:
+    try:
+        return json.loads(STATE_PATH.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def _save_state(state: dict) -> None:
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state))
+
+
+def should_flash(prev: dict, now: dt.datetime) -> bool:
+    """The first push in each hour clears the ghosting that partial refreshes leave behind."""
+    return prev.get("hour") != now.strftime("%Y-%m-%dT%H")
+
+
+def push(png: bytes, flash: bool) -> subprocess.CompletedProcess:
+    return subprocess.run([*_SSH, HOST, _REMOTE.replace("{flash}", "1" if flash else "0")],
+                          input=png, capture_output=True, timeout=TIMEOUT_S)
+
+
+class TouchParser:
+    """Raw panel events in, completed taps (panel coordinates) out. A tap is the finger
+    lifting: BTN_TOUCH going to 0, at the last position reported."""
+
+    def __init__(self) -> None:
+        self.buf = b""
+        self.x = self.y = None
+
+    def feed(self, data: bytes) -> list[tuple[int, int]]:
+        self.buf += data
+        taps = []
+        while len(self.buf) >= _EVENT.size:
+            _, _, etype, code, value = _EVENT.unpack_from(self.buf)
+            self.buf = self.buf[_EVENT.size:]
+            if etype == EV_ABS and code in (ABS_X, ABS_MT_X):
+                self.x = value
+            elif etype == EV_ABS and code in (ABS_Y, ABS_MT_Y):
+                self.y = value
+            elif etype == EV_KEY and code == BTN_TOUCH and value == 0 and self.x is not None:
+                taps.append((self.x, self.y))
+        return taps
+
+
+class Board:
+    """What is on the panel right now, and what a tap on it means."""
+
+    def __init__(self, send=push, render=board.frame, close=board.complete) -> None:
+        self.send, self.render, self.close = send, render, close
+        self.hits: list[dict] = []
+        self.selected: dict | None = None
+        self.selected_at = 0.0
+        self.note: str | None = None
+        self.note_at = 0.0
+
+    def draw(self, now: dt.datetime | None = None, force: bool = False) -> str:
+        now = now or dt.datetime.now().astimezone()
+        png, hits = self.render("kindle", now, self.selected and self.selected["key"], self.note)
+        digest = hashlib.sha256(png).hexdigest()
+        prev = _load_state()
+        flash = should_flash(prev, now)
+        if digest == prev.get("digest") and not flash and not force:
+            self.hits = hits
+            return "unchanged"
+        try:
+            result = self.send(png, flash)
+        except subprocess.TimeoutExpired:
+            return "kindle did not answer"
+        if result.returncode != 0:
+            err = result.stderr.decode(errors="replace").strip().splitlines()
+            return f"push failed ({result.returncode}): {err[-1] if err else 'no output'}"
+        self.hits = hits
+        _save_state({"digest": digest, "hour": now.strftime("%Y-%m-%dT%H"), "at": now.isoformat()})
+        return "flashed" if flash else "drawn"
+
+    def expire(self, clock: float) -> bool:
+        """Drop a selection nobody confirmed, and a result line once it has been read. True
+        when the board needs a redraw."""
+        if self.selected and clock - self.selected_at > CONFIRM_S:
+            self.selected, self.note = None, None
+            return True
+        if not self.selected and self.note and clock - self.note_at > NOTE_S:
+            self.note = None
+            return True
+        return False
+
+    def next_expiry(self) -> float | None:
+        if self.selected:
+            return self.selected_at + CONFIRM_S + 0.5
+        if self.note:
+            return self.note_at + NOTE_S + 0.5
+        return None
+
+    def tap(self, bx: int, by: int, clock: float) -> str:
+        self.note_at = clock
+        item = board.hit_at(self.hits, bx, by)
+        if item and item.get("choice"):  # a button in the band: the answer, no second tap
+            target, self.selected = item["target"], None
+            try:
+                self.note = self.close(target, item["choice"])
+            except Exception as e:  # noqa: BLE001 — say what went wrong, on the board
+                self.note = f"Couldn't do that: {e}"
+            return f"{item['choice']} {target['key'][:60]!r}: {self.note}"
+        if self.selected and item and item["key"] == self.selected["key"] \
+                and clock - self.selected_at <= CONFIRM_S:
+            self.selected = None
+            if item.get("done"):
+                try:
+                    self.note = self.close(item)
+                except Exception as e:  # noqa: BLE001 — say what went wrong, on the board
+                    self.note = f"Couldn't close it: {e}"
+            else:
+                self.note = None
+            return f"confirm {item['key'][:60]!r}: {self.note}"
+        if item:
+            self.selected, self.selected_at = item, clock
+            self.note = (item["detail"] if item.get("choices")
+                         else "Tap again to mark it done" if item.get("done")
+                         else item.get("detail") or item.get("sub") or item["title"])
+            return f"select {item['key'][:60]!r}"
+        self.selected, self.note = None, None
+        return "clear"
+
+
+def _open_stream() -> subprocess.Popen:
+    return subprocess.Popen([*_SSH, "-o", "ServerAliveInterval=15", HOST, f"exec cat {TOUCH_DEV}"],
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+
+def serve() -> int:
+    b, parser = Board(), TouchParser()
+    stream, sel = None, selectors.DefaultSelector()
+    next_draw, retry_at = 0.0, 0.0
+    while True:
+        clock = time.monotonic()
+        if stream is None and clock >= retry_at:
+            stream = _open_stream()
+            sel.register(stream.stdout, selectors.EVENT_READ)
+            parser = TouchParser()
+        if clock >= next_draw or b.expire(clock):
+            print(f"board-push: {b.draw()}", flush=True)
+            next_draw = clock + EVERY_S
+        wait = max(0.5, min(next_draw, b.next_expiry() or next_draw) - clock)
+        for key, _ in sel.select(timeout=wait):
+            data = os.read(key.fileobj.fileno(), 4096)
+            if not data:  # the Kindle went away (reboot, WiFi, USB mode): reconnect shortly
+                sel.unregister(stream.stdout)
+                stream.kill()
+                stream.wait()
+                stream, retry_at = None, time.monotonic() + 30
+                print("board-push: touch stream closed, retrying in 30s", flush=True)
+                break
+            for px, py in parser.feed(data):
+                print(f"board-push: tap {board.from_panel(px, py)} -> "
+                      f"{b.tap(*board.from_panel(px, py), time.monotonic())}", flush=True)
+                print(f"board-push: {b.draw(force=True)}", flush=True)
+
+
+def main() -> int:
+    if "--once" in sys.argv:
+        print(f"board-push: {Board().draw()}")
+        return 0
+    return serve()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

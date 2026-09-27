@@ -1,0 +1,125 @@
+import datetime as dt
+import struct
+import subprocess
+
+import board
+import board_push
+
+NOW = dt.datetime(2026, 9, 26, 22, 50)
+
+
+def ev(etype, code, value):
+    return struct.pack("<IIHHi", 0, 0, etype, code, value)
+
+
+def test_touch_parser_reports_a_tap_where_the_finger_lifts():
+    p = board_push.TouchParser()
+    stream = (ev(3, 0x35, 50) + ev(3, 0x36, 951) + ev(1, 0x14A, 1)
+              + ev(3, 0x35, 49) + ev(3, 0x36, 942) + ev(1, 0x14A, 0))
+    # delivered in awkward chunks, as a pipe would
+    assert p.feed(stream[:21]) == []
+    assert p.feed(stream[21:]) == [(49, 942)]
+
+
+def test_panel_coordinates_map_onto_the_rotated_board():
+    # the three calibration taps from the real panel: top-left, bottom-right, the HOME label
+    assert board.from_panel(50, 951) == (73, 50)
+    assert board.from_panel(712, 48) == (976, 712)
+    bx, by = board.from_panel(167, 313)
+    assert 688 <= bx <= 780 and 150 <= by <= 180
+
+
+class FakeBoard(board_push.Board):
+    def __init__(self, items, rc=0):
+        self.sent = []
+        self.closed = []
+
+        def render(device, now, selected, note):
+            self.frame = (selected, note)
+            hits = [{"box": (0, 100 * i, 300, 100 * i + 90), "item": it} for i, it in enumerate(items)]
+            return repr((selected, note)).encode(), hits
+
+        def send(png, flash):
+            self.sent.append(flash)
+            return subprocess.CompletedProcess([], rc, b"", b"ssh: connect refused")
+
+        def close(item, choice=None):
+            self.closed.append((item["key"], choice) if choice else item["key"])
+            return f"Done: {item['title']}"
+        super().__init__(send=send, render=render, close=close)
+
+
+ITEMS = [{"key": "queue:a", "title": "Seed bag", "done": "queue"},
+         {"key": "home:b", "title": "Hot Peppers not reporting", "detail": "Soil sensor Hot Peppers is not reporting."}]
+
+
+def test_select_then_confirm_closes_the_item(monkeypatch, tmp_path):
+    monkeypatch.setattr(board_push, "STATE_PATH", tmp_path / "s.json")
+    b = FakeBoard(ITEMS)
+    b.draw(NOW)
+    assert b.tap(10, 10, 100.0).startswith("select")
+    assert b.note == "Tap again to mark it done"
+    b.tap(10, 10, 105.0)
+    assert b.closed == ["queue:a"] and b.note == "Done: Seed bag" and b.selected is None
+
+
+def test_confirm_after_the_window_selects_again_instead_of_closing(monkeypatch, tmp_path):
+    monkeypatch.setattr(board_push, "STATE_PATH", tmp_path / "s.json")
+    b = FakeBoard(ITEMS)
+    b.draw(NOW)
+    b.tap(10, 10, 100.0)
+    b.tap(10, 10, 100.0 + board_push.CONFIRM_S + 1)
+    assert b.closed == [] and b.selected["key"] == "queue:a"
+
+
+def test_alerts_explain_themselves_and_never_close(monkeypatch, tmp_path):
+    monkeypatch.setattr(board_push, "STATE_PATH", tmp_path / "s.json")
+    b = FakeBoard(ITEMS)
+    b.draw(NOW)
+    b.tap(10, 110, 100.0)
+    assert b.note == "Soil sensor Hot Peppers is not reporting."
+    b.tap(10, 110, 101.0)
+    assert b.closed == [] and b.note is None
+
+
+def test_tap_elsewhere_clears_and_stale_selection_expires(monkeypatch, tmp_path):
+    monkeypatch.setattr(board_push, "STATE_PATH", tmp_path / "s.json")
+    b = FakeBoard(ITEMS)
+    b.draw(NOW)
+    b.tap(10, 10, 100.0)
+    assert b.tap(900, 700, 101.0) == "clear" and b.selected is None
+    b.tap(10, 10, 200.0)
+    assert not b.expire(210.0)
+    assert b.expire(200.0 + board_push.CONFIRM_S + 1) and b.selected is None
+
+
+def test_hourly_flash_and_unchanged_frames(monkeypatch, tmp_path):
+    monkeypatch.setattr(board_push, "STATE_PATH", tmp_path / "s.json")
+    b = FakeBoard(ITEMS)
+    assert b.draw(NOW) == "flashed"
+    assert b.draw(NOW + dt.timedelta(minutes=5)) == "unchanged"
+    assert b.draw(NOW + dt.timedelta(minutes=5), force=True) == "drawn"
+    assert b.draw(NOW + dt.timedelta(hours=1)) == "flashed"
+    assert b.sent == [True, False, True]
+
+
+def test_failed_push_is_not_recorded(monkeypatch, tmp_path):
+    monkeypatch.setattr(board_push, "STATE_PATH", tmp_path / "s.json")
+    b = FakeBoard(ITEMS, rc=255)
+    assert b.draw(NOW).startswith("push failed (255)")
+    assert not (tmp_path / "s.json").exists()
+
+
+def test_memory_proposal_answers_with_a_button_not_a_second_tap(monkeypatch, tmp_path):
+    monkeypatch.setattr(board_push, "STATE_PATH", tmp_path / "s.json")
+    mem = {"key": "memory:x", "title": "Bodhi is the sire", "detail": "Bodhi is the sire.",
+           "memory": "x", "choices": board.MEMORY_CHOICES}
+    b = FakeBoard([mem])
+    b.draw(NOW)
+    b.tap(10, 10, 100.0)
+    assert b.note == "Bodhi is the sire."
+    # the band's buttons land in the hit map ahead of the items
+    b.hits.insert(0, {"box": (800, 700, 950, 756), "item": {"key": "choice:discard", "choice": "discard",
+                                                           "target": mem, "title": "Discard"}})
+    b.tap(870, 720, 101.0)
+    assert b.closed == [("memory:x", "discard")] and b.selected is None

@@ -1,0 +1,16 @@
+[Unit]
+Description=Hestia — board push (draw the board on the Kindle and listen for taps, over SSH)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Long-running: it owns the panel. It redraws every BOARD_PUSH_EVERY_S, holds an SSH stream of
+# the touch panel, and reconnects on its own when the Kindle reboots or drops off WiFi.
+Type=simple
+WorkingDirectory=%h/hestia/brain
+ExecStart=%h/.local/bin/uv run --project %h/hestia/brain python %h/hestia/brain/board_push.py
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target
