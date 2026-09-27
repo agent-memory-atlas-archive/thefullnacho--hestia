@@ -43,12 +43,17 @@ HOST = os.environ.get("BOARD_KINDLE_HOST", "kindle-board")
 STATE_PATH = config.BOARD_PUSH_STATE
 TIMEOUT_S = int(os.environ.get("BOARD_PUSH_TIMEOUT_S", "45"))
 EVERY_S = int(os.environ.get("BOARD_PUSH_EVERY_S", "300"))   # ambient, not an alarm
+RETRY_S = int(os.environ.get("BOARD_RETRY_S", "30"))         # while the Kindle is dark
 CONFIRM_S = int(os.environ.get("BOARD_CONFIRM_S", "60"))     # a selection this old is dropped
 NOTE_S = int(os.environ.get("BOARD_NOTE_S", "20"))           # how long "Done: …" stays up
 TOUCH_DEV = "/dev/input/event0"                               # cyttsp on the Paperwhite 1
 
-_SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ControlMaster=auto",
-        "-o", "ControlPath=~/.ssh/cm-board-%r@%h:%p", "-o", "ControlPersist=600"]
+# ServerAlive on every session: a WiFi drop must kill a dead connection in under a minute,
+# not leave a push or the shared master hanging on it.
+_SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+        "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
+        "-o", "ControlMaster=auto", "-o", "ControlPath=~/.ssh/cm-board-%r@%h:%p",
+        "-o", "ControlPersist=600"]
 
 # Runs on the Kindle's busybox sh. /tmp is tmpfs, so frames don't wear the flash.
 _REMOTE = r"""
@@ -199,12 +204,32 @@ class Board:
 
 
 def _open_stream() -> subprocess.Popen:
-    return subprocess.Popen([*_SSH, "-o", "ServerAliveInterval=15", HOST, f"exec cat {TOUCH_DEV}"],
+    return subprocess.Popen([*_SSH, HOST, f"exec cat {TOUCH_DEV}"],
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
 
+class Link:
+    """Whether the Kindle is reachable, logged only when that changes. A night of refusals is
+    one line going dark and one coming back, not a hundred identical ones."""
+
+    def __init__(self) -> None:
+        self.dark_since: float | None = None
+
+    def result(self, outcome: str, clock: float) -> bool:
+        ok = outcome in ("drawn", "flashed", "unchanged")
+        if ok and self.dark_since is not None:
+            print(f"board-push: kindle back after {int(clock - self.dark_since)}s, {outcome}", flush=True)
+            self.dark_since = None
+        elif not ok and self.dark_since is None:
+            print(f"board-push: kindle dark: {outcome}", flush=True)
+            self.dark_since = clock
+        elif ok and outcome != "unchanged":
+            print(f"board-push: {outcome}", flush=True)
+        return ok
+
+
 def serve() -> int:
-    b, parser = Board(), TouchParser()
+    b, parser, link = Board(), TouchParser(), Link()
     stream, sel = None, selectors.DefaultSelector()
     next_draw, retry_at = 0.0, 0.0
     while True:
@@ -214,17 +239,20 @@ def serve() -> int:
             sel.register(stream.stdout, selectors.EVENT_READ)
             parser = TouchParser()
         if clock >= next_draw or b.expire(clock):
-            print(f"board-push: {b.draw()}", flush=True)
-            next_draw = clock + EVERY_S
-        wait = max(0.5, min(next_draw, b.next_expiry() or next_draw) - clock)
+            # a dark Kindle is retried every RETRY_S, so a reboot is reclaimed within a minute
+            ok = link.result(b.draw(force=link.dark_since is not None), clock)
+            next_draw = clock + (EVERY_S if ok else RETRY_S)
+        deadlines = [next_draw, b.next_expiry() or next_draw]
+        if stream is None:
+            deadlines.append(retry_at)
+        wait = max(0.5, min(deadlines) - clock)
         for key, _ in sel.select(timeout=wait):
             data = os.read(key.fileobj.fileno(), 4096)
             if not data:  # the Kindle went away (reboot, WiFi, USB mode): reconnect shortly
                 sel.unregister(stream.stdout)
                 stream.kill()
                 stream.wait()
-                stream, retry_at = None, time.monotonic() + 30
-                print("board-push: touch stream closed, retrying in 30s", flush=True)
+                stream, retry_at = None, time.monotonic() + RETRY_S
                 break
             for px, py in parser.feed(data):
                 print(f"board-push: tap {board.from_panel(px, py)} -> "

@@ -123,3 +123,16 @@ def test_memory_proposal_answers_with_a_button_not_a_second_tap(monkeypatch, tmp
                                                            "target": mem, "title": "Discard"}})
     b.tap(870, 720, 101.0)
     assert b.closed == [("memory:x", "discard")] and b.selected is None
+
+
+def test_link_logs_going_dark_and_coming_back_once(capsys):
+    link = board_push.Link()
+    assert link.result("drawn", 0) is True
+    assert not link.result("push failed (255): refused", 10)
+    assert not link.result("push failed (255): refused", 40)
+    assert not link.result("kindle did not answer", 70)
+    assert link.result("flashed", 100)
+    out = capsys.readouterr().out.splitlines()
+    assert out == ["board-push: drawn",
+                   "board-push: kindle dark: push failed (255): refused",
+                   "board-push: kindle back after 90s, flashed"]
