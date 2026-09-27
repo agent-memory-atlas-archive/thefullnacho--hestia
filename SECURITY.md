@@ -52,6 +52,15 @@ the contents back.
 - The records database (`data/`) and learned memories (`memory/`) hold personal data (people,
   pets, your home). Both are **gitignored** and never leave your boxes except via your own backups
   (see `deploy/backup/OFFSITE-RUNBOOK.md` — the off-site copy is encrypted at rest).
+- **Private addresses remain in git history, by decision.** Early commits carried LAN and
+  tailnet addresses before those moved into untracked config. They are scrubbed from the current
+  tree and stay in history: they are private ranges that route nowhere from the internet, and
+  rewriting a public history would break every clone to hide something the trust model above
+  already does not rely on. The network boundary is the protection, not the secrecy of an
+  address. Accepted 2026-09-27.
+- **The board's Kindle** (`deploy/kindle/`) runs an SSH server on the LAN with key-only root
+  login. It holds no secrets and only receives images, but it is a root shell on a 2009 kernel,
+  so it gets a DHCP reservation, one dedicated key, and nothing else from this repo.
 
 ## Threat model
 
