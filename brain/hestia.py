@@ -838,9 +838,29 @@ def board_png(device: str = ""):
 
 
 @app.get("/queue")
-def queue_page():
-    """The board's columns as a read-only page for the phone, refreshing itself. No model."""
-    return HTMLResponse(board.queue_page(), headers={"Cache-Control": "no-store"})
+def queue_page(token: str = ""):
+    """The board's columns as a page for the phone, refreshing itself. No model. Read-only
+    unless opened with the NFC token, which adds Done buttons (the same credential a tag
+    carries, so the phone gains no power a stake in the garden doesn't already have)."""
+    writable = bool(NFC_TOKEN) and token == NFC_TOKEN
+    return HTMLResponse(board.queue_page(token=token if writable else ""),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.post("/queue/{qid}/{action}")
+def queue_act(qid: str, action: str, request: Request, token: str = ""):
+    """Done, keep or trash one queue row by its stable id. Token-gated: header X-Queue-Token,
+    or `token` in the query. Same write path as a Kindle tap."""
+    given = request.headers.get("X-Queue-Token") or token
+    if not NFC_TOKEN or given != NFC_TOKEN:
+        return JSONResponse(status_code=401, content={"ok": False, "detail": "bad or missing token"})
+    try:
+        message = board.act_on_queue(qid, action)
+    except LookupError as e:
+        return JSONResponse(status_code=404, content={"ok": False, "detail": str(e)})
+    except ValueError as e:
+        return JSONResponse(status_code=409, content={"ok": False, "detail": str(e)})
+    return {"ok": True, "id": qid, "action": action, "detail": message}
 
 
 @app.get("/queue.json")

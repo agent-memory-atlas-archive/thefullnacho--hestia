@@ -132,6 +132,14 @@ def deferred(item: str, today: dt.date) -> bool:
     return bool(m) and _MONTHS.index(m.group(1).lower()) + 1 != today.month
 
 
+def queue_id(added: str, project: str, title: str) -> str:
+    """A row's stable id: its added date, project and title. It survives edits to the rest of
+    the row, the Days open column, and moves within the table; rewording the bolded title
+    makes it a new row, which it arguably is. The queue file has no id column and the board
+    does not add one, because other tools write that file too."""
+    return hashlib.sha256(f"{added}|{project}|{title.lower()}".encode()).hexdigest()[:10]
+
+
 def queue_items(text: str, today: dt.date) -> list[dict]:
     """Open rows of the operator's queue, oldest first. Rows with a Done date are finished
     even if nobody has moved them yet, so they never reach the board."""
@@ -153,9 +161,10 @@ def queue_items(text: str, today: dt.date) -> list[dict]:
         except ValueError:
             age = 0
         title = title_of(item)
-        out.append({"title": title, "project": project, "age": age,
-                    "column": column_of(item, title), "key": "queue:" + line, "line": line,
-                    "done": "queue"})
+        qid = queue_id(added, project, title)
+        out.append({"id": qid, "title": title, "project": project, "added": added, "age": age,
+                    "column": column_of(item, title), "key": "queue:" + qid, "line": line,
+                    "done": "queue", "status": "open"})
     out.sort(key=lambda r: -r["age"])
     return out
 
@@ -201,6 +210,7 @@ def read_queue(today: dt.date) -> list[dict]:
     reviews = _reviews()
     for item in items:
         if due_for_review(item, today, reviews):
+            item["status"] = "review"
             item["choices"] = QUEUE_CHOICES
             item["detail"] = f"{item['title']} ({item['age']} days). Still real?"
     return items
@@ -599,8 +609,9 @@ def snapshot(now: dt.datetime | None = None) -> dict:
         if home_col:
             return {"title": i["title"], "sub": i.get("sub", ""), "level": i.get("level", 1)}
         sub = i["project"] + (f" · {i['age']}d" if i["age"] > STALE_DAYS else "")
-        return {"title": i["title"], "sub": sub + (" · review" if i.get("choices") else ""),
-                "level": 1, "age": i["age"]}
+        return {"id": i["id"], "status": i["status"], "title": i["title"], "project": i["project"],
+                "added": i["added"], "age": i["age"], "column": i["column"],
+                "sub": sub + (" · review" if i.get("choices") else ""), "level": 1}
 
     return {"updated": now.isoformat(timespec="seconds"), "mood": m, "headline": headline(home, m),
             "columns": {"hands": [row(q) for q in queue if q["column"] == "hands"],
@@ -609,16 +620,23 @@ def snapshot(now: dt.datetime | None = None) -> dict:
                         "memory": [row(i, True) for i in memory]}}
 
 
-def queue_page(now: dt.datetime | None = None) -> str:
+def queue_page(now: dt.datetime | None = None, token: str = "") -> str:
+    """Read-only unless opened with the write token, which adds a Done button to queue rows
+    (with a confirm, since a phone tap is one touch, not the Kindle's two)."""
     import html
     snap = snapshot(now)
     when = dt.datetime.fromisoformat(snap["updated"])
+    def btn(r: dict) -> str:
+        if not token or "id" not in r:
+            return ""
+        return f'<button data-id="{r["id"]}" data-title="{html.escape(r["title"])}">Done</button>'
+
     sections = []
     for name, rows in snap["columns"].items():
         if name == "memory" and not rows:
             continue
         items = "".join(
-            f'<li class="l{r["level"]}"><span class="t">{html.escape(r["title"])}</span>'
+            f'<li class="l{r["level"]}">{btn(r)}<span class="t">{html.escape(r["title"])}</span>'
             f'<span class="s">{html.escape(r["sub"])}</span></li>' for r in rows) or '<li class="none">Nothing here</li>'
         sections.append(f'<section><h2>{name.upper()} <span class="n">{len(rows)}</span></h2><ul>{items}</ul></section>')
     return f"""<!doctype html>
@@ -647,27 +665,61 @@ def queue_page(now: dt.datetime | None = None) -> str:
   li.l0 .t {{ color:var(--mid); }}
   li.none {{ color:var(--mid); }}
   footer {{ color:var(--mid); font-size:.8rem; margin-top:24px; }}
+  li button {{ float:right; margin:2px 0 6px 12px; font:inherit; font-size:.85rem; padding:6px 14px;
+              border-radius:8px; border:1.5px solid var(--fg); background:none; color:var(--fg); }}
+  li button:disabled {{ opacity:.4; }}
 </style></head>
 <body>
 <div id="board">
 <header><h1>{when.strftime("%A, %B ")}{when.day}</h1>
 <div class="head {snap["mood"]}">{html.escape(snap["headline"])}</div></header>
 <main>{"".join(sections)}</main>
-<footer>Read-only. Updated {when.strftime("%H:%M")}; refreshes every minute.</footer>
+<footer>{"Done moves a row to Shipped." if token else "Read-only."} Updated {when.strftime("%H:%M")}; refreshes every minute.</footer>
 </div>
 <script>
 // Swap in a fresh copy every minute without a full reload, so the page keeps its scroll.
-setInterval(async () => {{
+async function refresh() {{
   try {{
-    const r = await fetch(location.pathname, {{cache: "no-store"}});
+    const r = await fetch(location.href, {{cache: "no-store"}});
     if (!r.ok) return;
     const doc = new DOMParser().parseFromString(await r.text(), "text/html");
     const next = doc.getElementById("board");
     if (next) document.getElementById("board").replaceWith(next);
   }} catch (e) {{}}
-}}, {REFRESH_S * 1000});
+}}
+setInterval(refresh, {REFRESH_S * 1000});
+// Done: one confirm, then the same write a Kindle tap makes, then a fresh copy of the page.
+document.addEventListener("click", async (ev) => {{
+  const b = ev.target.closest("button[data-id]");
+  if (!b || !confirm("Mark done: " + b.dataset.title + "?")) return;
+  b.disabled = true;
+  const token = new URLSearchParams(location.search).get("token") || "";
+  const r = await fetch("/queue/" + b.dataset.id + "/done", {{
+    method: "POST", headers: {{"X-Queue-Token": token}}}});
+  if (!r.ok) {{ b.disabled = false; alert((await r.json()).detail || "Could not close it"); return; }}
+  refresh();
+}});
 </script>
 </body></html>"""
+
+
+# ── acting on a row by id ────────────────────────────────────────────────────────────
+
+QUEUE_ACTIONS = ("done", "keep", "trash")
+
+
+def act_on_queue(qid: str, action: str, now: dt.datetime | None = None) -> str:
+    """Done, keep or trash one row by its stable id, against the file as it is now, not as
+    some page drew it. The same paths as a Kindle tap, so the file sees one kind of edit."""
+    if action not in QUEUE_ACTIONS:
+        raise ValueError(f"action must be one of {', '.join(QUEUE_ACTIONS)}")
+    now = now or dt.datetime.now().astimezone()
+    matches = [i for i in read_queue(now.date()) if i["id"] == qid]
+    if not matches:
+        raise LookupError("no open row with that id")
+    if len(matches) > 1:
+        raise ValueError("two open rows share that id; close it on the Kindle or by hand")
+    return complete(matches[0], action, now)
 
 
 # ── closing things from the board ────────────────────────────────────────────────────────

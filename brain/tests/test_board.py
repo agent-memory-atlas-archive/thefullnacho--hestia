@@ -149,3 +149,46 @@ def test_queue_page_is_read_only_and_escapes(tmp_path, monkeypatch):
     assert "MEMORY" not in page  # empty inbox, no section
     snap = board.snapshot(dt.datetime(2026, 9, 26, 9, 0).astimezone())
     assert [r["title"] for r in snap["columns"]["screen"]][:1] == ["Tailscale ACL restricting port 8730"]
+
+
+def test_ids_are_stable_across_edits_to_the_rest_of_the_row():
+    a = board.queue_items(QUEUE, TODAY)
+    edited = QUEUE.replace("for the type", "for the type and the sprout days")
+    b = board.queue_items(edited, TODAY)
+    ids = lambda rows: {r["title"]: r["id"] for r in rows}
+    assert ids(a) == ids(b)
+    assert len(set(ids(a).values())) == len(a)
+
+
+def test_act_on_queue_by_id_and_status(tmp_path, monkeypatch):
+    q = tmp_path / "queue.md"
+    q.write_text(QUEUE)
+    monkeypatch.setattr(board, "BOARD_QUEUE", q)
+    monkeypatch.setattr(board.config, "BOARD_REVIEW_STATE", tmp_path / "review.json")
+    now = dt.datetime(2026, 9, 26, 9, 0)
+    rows = {r["title"]: r for r in board.read_queue(TODAY)}
+    assert rows["Tailscale ACL restricting port 8730"]["status"] == "review"
+    assert rows["Check the marigold seed bag"]["status"] == "open"
+    assert board.act_on_queue(rows["Check the marigold seed bag"]["id"], "done", now).startswith("Done")
+    try:
+        board.act_on_queue(rows["Check the marigold seed bag"]["id"], "done", now)
+        raise AssertionError("closed twice")
+    except LookupError:
+        pass
+    try:
+        board.act_on_queue(rows["Tailscale ACL restricting port 8730"]["id"], "delete", now)
+        raise AssertionError("accepted an unknown action")
+    except ValueError:
+        pass
+
+
+def test_page_shows_done_buttons_only_with_a_token(tmp_path, monkeypatch):
+    q = tmp_path / "queue.md"
+    q.write_text(QUEUE)
+    monkeypatch.setattr(board, "BOARD_QUEUE", q)
+    monkeypatch.setattr(board.config, "BOARD_REVIEW_STATE", tmp_path / "review.json")
+    monkeypatch.setattr(board, "home_items", lambda now: [])
+    monkeypatch.setattr(board, "read_memory", lambda: [])
+    now = dt.datetime(2026, 9, 26, 9, 0).astimezone()
+    assert "<button" not in board.queue_page(now)
+    assert board.queue_page(now, token="t").count("<button") == 3
