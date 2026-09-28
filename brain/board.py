@@ -583,6 +583,93 @@ def hit_at(hits: list[dict], bx: int, by: int) -> dict | None:
     return None
 
 
+# ── the same board as a read-only page ───────────────────────────────────────────────
+# For the phone: the board's columns as text on the tailnet, refreshing itself. No buttons on
+# purpose; closing things stays on the Kindle, where a tap is two deliberate touches.
+
+REFRESH_S = 60
+
+
+def snapshot(now: dt.datetime | None = None) -> dict:
+    now = now or dt.datetime.now().astimezone()
+    queue, home, memory = read_queue(now.date()), home_items(now), read_memory()
+    m = mood(home, now)
+
+    def row(i: dict, home_col: bool = False) -> dict:
+        if home_col:
+            return {"title": i["title"], "sub": i.get("sub", ""), "level": i.get("level", 1)}
+        sub = i["project"] + (f" · {i['age']}d" if i["age"] > STALE_DAYS else "")
+        return {"title": i["title"], "sub": sub + (" · review" if i.get("choices") else ""),
+                "level": 1, "age": i["age"]}
+
+    return {"updated": now.isoformat(timespec="seconds"), "mood": m, "headline": headline(home, m),
+            "columns": {"hands": [row(q) for q in queue if q["column"] == "hands"],
+                        "screen": [row(q) for q in queue if q["column"] == "screen"],
+                        "home": [row(i, True) for i in home],
+                        "memory": [row(i, True) for i in memory]}}
+
+
+def queue_page(now: dt.datetime | None = None) -> str:
+    import html
+    snap = snapshot(now)
+    when = dt.datetime.fromisoformat(snap["updated"])
+    sections = []
+    for name, rows in snap["columns"].items():
+        if name == "memory" and not rows:
+            continue
+        items = "".join(
+            f'<li class="l{r["level"]}"><span class="t">{html.escape(r["title"])}</span>'
+            f'<span class="s">{html.escape(r["sub"])}</span></li>' for r in rows) or '<li class="none">Nothing here</li>'
+        sections.append(f'<section><h2>{name.upper()} <span class="n">{len(rows)}</span></h2><ul>{items}</ul></section>')
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hestia queue</title>
+<style>
+  :root {{ --bg:#f6f4ef; --fg:#1b1b1b; --mid:#6b6b6b; --line:#d9d5cc; --hot:#1b1b1b; }}
+  @media (prefers-color-scheme: dark) {{ :root {{ --bg:#14171a; --fg:#ececec; --mid:#9aa0a6; --line:#2b3035; --hot:#ececec; }} }}
+  body {{ margin:0; padding:20px 16px 48px; background:var(--bg); color:var(--fg);
+         font:17px/1.35 -apple-system, system-ui, sans-serif; }}
+  header {{ margin-bottom:18px; }}
+  h1 {{ font-size:1.35rem; margin:0; }}
+  .head {{ color:var(--mid); margin-top:2px; }}
+  .head.concerned {{ color:var(--fg); font-weight:600; }}
+  main {{ display:grid; gap:22px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }}
+  h2 {{ font-size:.85rem; letter-spacing:.08em; margin:0 0 6px; padding-bottom:6px;
+        border-bottom:2px solid var(--fg); display:flex; justify-content:space-between; }}
+  .n {{ color:var(--mid); }}
+  ul {{ list-style:none; margin:0; padding:0; }}
+  li {{ padding:9px 0; border-bottom:1px solid var(--line); }}
+  .t {{ display:block; }}
+  .s {{ display:block; color:var(--mid); font-size:.85rem; margin-top:2px; }}
+  li.l2 .t {{ font-weight:700; }}
+  li.l2 .t::before {{ content:"■ "; }}
+  li.l0 .t {{ color:var(--mid); }}
+  li.none {{ color:var(--mid); }}
+  footer {{ color:var(--mid); font-size:.8rem; margin-top:24px; }}
+</style></head>
+<body>
+<div id="board">
+<header><h1>{when.strftime("%A, %B ")}{when.day}</h1>
+<div class="head {snap["mood"]}">{html.escape(snap["headline"])}</div></header>
+<main>{"".join(sections)}</main>
+<footer>Read-only. Updated {when.strftime("%H:%M")}; refreshes every minute.</footer>
+</div>
+<script>
+// Swap in a fresh copy every minute without a full reload, so the page keeps its scroll.
+setInterval(async () => {{
+  try {{
+    const r = await fetch(location.pathname, {{cache: "no-store"}});
+    if (!r.ok) return;
+    const doc = new DOMParser().parseFromString(await r.text(), "text/html");
+    const next = doc.getElementById("board");
+    if (next) document.getElementById("board").replaceWith(next);
+  }} catch (e) {{}}
+}}, {REFRESH_S * 1000});
+</script>
+</body></html>"""
+
+
 # ── closing things from the board ────────────────────────────────────────────────────────
 
 def _exact_row(lines: list[str], line: str) -> int:

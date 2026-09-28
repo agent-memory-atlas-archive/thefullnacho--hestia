@@ -135,3 +135,17 @@ def test_trash_deletes_without_a_shipped_entry(tmp_path, monkeypatch):
     assert old["line"] in (tmp_path / "trashed.tsv").read_text()  # a misfire can be put back
     text = q.read_text()
     assert old["line"] not in text and "Tailscale" not in text.split("## Shipped")[1]
+
+
+def test_queue_page_is_read_only_and_escapes(tmp_path, monkeypatch):
+    q = tmp_path / "queue.md"
+    q.write_text(QUEUE.replace("pot the rosemary", "pot <b>rosemary</b>"))
+    monkeypatch.setattr(board, "BOARD_QUEUE", q)
+    monkeypatch.setattr(board.config, "BOARD_REVIEW_STATE", tmp_path / "review.json")
+    monkeypatch.setattr(board, "home_items", lambda now: [{"title": "Box <hot>", "sub": "day 5", "level": 2}])
+    monkeypatch.setattr(board, "read_memory", lambda: [])
+    page = board.queue_page(dt.datetime(2026, 9, 26, 9, 0).astimezone())
+    assert "Box &lt;hot&gt;" in page and "<form" not in page and "<button" not in page
+    assert "MEMORY" not in page  # empty inbox, no section
+    snap = board.snapshot(dt.datetime(2026, 9, 26, 9, 0).astimezone())
+    assert [r["title"] for r in snap["columns"]["screen"]][:1] == ["Tailscale ACL restricting port 8730"]

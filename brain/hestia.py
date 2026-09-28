@@ -837,6 +837,17 @@ def board_png(device: str = ""):
                     headers={"Cache-Control": "no-store"})
 
 
+@app.get("/queue")
+def queue_page():
+    """The board's columns as a read-only page for the phone, refreshing itself. No model."""
+    return HTMLResponse(board.queue_page(), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/queue.json")
+def queue_json():
+    return JSONResponse(board.snapshot(), headers={"Cache-Control": "no-store"})
+
+
 @app.get("/health")
 async def health():
     try:
