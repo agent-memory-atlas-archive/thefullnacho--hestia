@@ -39,8 +39,8 @@ def whelp(db, day="2026-09-25"):
 # ----- bands and readings ---------------------------------------------------
 
 def test_bands_step_down_by_litter_day():
-    assert box_watch.band(0) == (77.0, 90.0)
-    assert box_watch.band(7) == (77.0, 90.0)
+    assert box_watch.band(0) == (70.0, 90.0)
+    assert box_watch.band(7) == (70.0, 90.0)
     assert box_watch.band(8) == (75.0, 88.0)
     assert box_watch.band(35) == (68.0, 83.0)
     assert box_watch.band(36) is None
@@ -114,8 +114,13 @@ def test_litter_past_the_last_band_is_not_watched(watch, db):
 def test_whelped_litter_arms_the_watch(watch, db):
     whelp(db)
     t0 = at("2026-09-25", 3)
-    cold = lambda: ha(72.0, t0)  # noqa: E731 — a pre-whelp room temperature, lamp still off
-    assert watch.run(now=t0, fetch=cold) is None
+    # 72F ambient is in-band under the 2026-09-29 lamp-off/pad-85 schedule (floor 70).
+    ok = lambda: ha(72.0, t0)  # noqa: E731
+    assert watch.run(now=t0, fetch=ok) is None
     t1 = t0 + dt.timedelta(minutes=6)
-    msg = watch.run(now=t1, fetch=lambda: ha(72.0, t1))
-    assert "below 77" in msg and "day 0" in msg
+    assert watch.run(now=t1, fetch=lambda: ha(72.0, t1)) is None
+    # Truly cold still arms the watch.
+    cold = lambda: ha(65.0, t0)  # noqa: E731
+    assert watch.run(now=t0, fetch=cold) is None
+    msg = watch.run(now=t1, fetch=lambda: ha(65.0, t1))
+    assert "below 70" in msg and "day 0" in msg

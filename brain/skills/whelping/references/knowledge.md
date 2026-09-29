@@ -39,11 +39,13 @@ names, AKC numbers, DOBs, and litter counts from there, not from here. In brief:
 - Air at pup height on the heated side: **~90°F week 1** (from the last litter, matches the
   usual 85–90), then about **80°F weeks 2–3** and **75°F by week 4** (general guidance, not
   yet confirmed here).
-- The kennel box shows this; `box_watch` alerts outside 77–90°F in week 1, 75–88 weeks
-  2–3, 68–83 weeks 4–5. **Week 1 was recalibrated 2026-09-24 from 82–93.** That band is
-  tied to where the Govee actually sits, which is not pup height on the heated side: with
-  the pad holding 90 it read 77.5. We steer this sensor to about 80 and read the pups and
-  the box camera for the truth. Move the sensor and the band has to be re-derived.
+- The kennel box shows this; `box_watch` alerts outside 70–90°F in week 1, 75–88 weeks
+  2–3, 68–83 weeks 4–5. **Week 1 was recalibrated 2026-09-24 from 82–93 to 77–90, then
+  again 2026-09-29 13:52 EDT from 77–90 to 70–90** when the heat lamp went OFF, the pad
+  stayed at 85, and ambient settled at ~72°F as the new normal (pups self-regulating, no
+  distress). The band is tied to where the Govee actually sits, which is not pup height on
+  the heated side. Read the pups and the box camera for the truth. Move the sensor and the
+  band has to be re-derived.
 - The pups are the real thermometer: piled on each other = cold, spread away from the
   heat = too hot.
 

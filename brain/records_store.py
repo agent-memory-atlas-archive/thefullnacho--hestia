@@ -514,22 +514,30 @@ def _grams(text: str | None) -> float | None:
 
 
 def log_weight(pup: str, qty: float | str, unit: str | None = None,
-               ts: str | None = None, detail: str | None = None) -> dict:
+               ts: str | None = None, detail: str | None = None,
+               unreliable: bool = False) -> dict:
     """Record one puppy weighing. The pup is the event subject, kind-scoped to `pet` so a
     weight can never mint a place or a species by typo. Raises ValueError when the amount
     isn't a weight — a count of a puppy is meaningless and a silently-dropped unit would
-    put a wrong number on the curve the fading-pup alert reads."""
+    put a wrong number on the curve the fading-pup alert reads.
+
+    Set `unreliable=True` for readings that must stay on the timeline but must not drive
+    growth curves or puppy_watch alerts (e.g. an unlevel postage scale). weight_series
+    skips those rows."""
     qty, unit = parse_qty_unit(qty, unit)
     cls, canon = normalize_unit(unit)
     if cls != "weight":
         raise ValueError(f"a puppy weight needs a weight unit (oz, g, lb, kg), not {unit!r}")
     grams = qty * _WEIGHT_G[canon]
     amount = f"{qty:g} {canon}"
+    attrs = {"qty": qty, "unit": canon, "unit_class": cls,
+             "grams": round(grams, 2), "amount": amount}
+    if unreliable:
+        attrs["unreliable"] = True
     ev = log_event("health", subject=pup, action="weighed",
                    detail=detail or amount, subject_kind="pet", strict_subject=True,
-                   ts=ts, attrs={"qty": qty, "unit": canon, "unit_class": cls,
-                                 "grams": round(grams, 2), "amount": amount})
-    return {**ev, "amount": amount, "grams": round(grams, 2)}
+                   ts=ts, attrs=attrs)
+    return {**ev, "amount": amount, "grams": round(grams, 2), "unreliable": unreliable}
 
 
 def weight_series(pup: str) -> list[dict]:
@@ -551,6 +559,8 @@ def weight_series(pup: str) -> list[dict]:
     for r in rows:
         a = json.loads(r["attrs"] or "{}")
         if r["action"] == "weighed" and a.get("grams") is not None:
+            if a.get("unreliable"):
+                continue  # on the timeline, but not on the curve / puppy_watch
             grams, source = float(a["grams"]), "weighed"
         elif r["kind"] == "birth":
             grams, source = _grams(a.get("weight")), "birth"
