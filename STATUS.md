@@ -7,6 +7,27 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-10 - the box comes plugged or soldered, carries the name, and the models are CC BY
+
+- **On `main` (13ee8fe):** `bo_leads` picks the box. `"plugged"` (default) is 7.5 mm taller so the
+  breakout's jumpers fit on its right-angle header as they come; `"soldered"` is the first print
+  exactly, for leads soldered to the pins with a tight turn. The file checks the leads clear the
+  top wall and the corner's lid screw boss, and the fit checks pass for both.
+- **The name:** "HomesteaderLabs" is recessed 0.6 mm into the back face, against the framing once
+  mounted. Text, not the brand mark, which the operator has not settled; `mark` is a string, and
+  `""` leaves it off.
+- **License:** the `.scad` models in `hardware/` and the STLs from them are CC BY 4.0 (the
+  operator's call: as open as possible, credit kept). Code stays AGPL-3.0. `hardware/LICENSE.md`
+  says so, and the root README points to it.
+- **Correction to the entry below:** the corner's lid screw boss sits under a millimetre beside
+  the DAT jumper, not over it. The limit was the top wall, 14 mm past the header edge.
+- **Next concrete action:** mount the box on the door frame, then the cold-night door test. The
+  STLs in `data/` are the soldered box without the name; render fresh ones before sharing.
+
+[non-production] Mount the box on the greenhouse door frame (unchanged from below).
+
+---
+
 ## 2026-10-10 - the greenhouse door board is boxed and working
 
 - **Reported by the operator, not checked from here:** box, lid and clamp printed in PETG (box
