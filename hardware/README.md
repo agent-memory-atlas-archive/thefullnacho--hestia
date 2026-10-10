@@ -183,8 +183,8 @@ standing in, and the brain is reachable on the tailnet only.
 
 The enclosure for the greenhouse-door ESP32 and its DS18B20 breakout (wiring and config in
 `deploy/esphome/`). It screws to the wood framing inside the greenhouse. The box is 134 mm
-across, 57 tall and 47 deep with the lid on; the lid's skirt adds 2 mm around the edge and the
-mounting ears add 14 top and bottom.
+across, 65 tall (57 for the soldered version below) and 47 deep with the lid on; the lid's
+skirt adds 2 mm around the edge and the mounting ears add 14 top and bottom.
 
 Every entry is on the bottom face, pointing down, so water on a cable drips off the cable
 instead of following it in: two PG7 glands for the reed leads, one for the probe, a spare
@@ -202,6 +202,20 @@ The ESP32 sits flipped: module toward the back wall on 6 mm posts, jumpers risin
 lid. The other way round needs posts about 31 mm tall to clear the jumpers, and a post that
 tall prints with every layer line across it and snaps at the base. Flipped, the jumpers face
 you when the lid comes off.
+
+### Plugged or soldered leads
+
+The probe breakout's header is right-angle, so its three leads leave the board's top edge
+flat, pointing at the top wall rather than up at the lid. The first print missed this: it left
+14 mm past that edge, and a jumper plugged onto a straight-out pin needs about 21. `bo_leads`
+picks between two boxes:
+
+- **`"plugged"`** (default): 7.5 mm taller, and the jumpers go on as they come.
+- **`"soldered"`**: the box as first printed. The three leads are soldered to the header pins
+  with a tight turn, heatshrink on each and a little longer on the last for support. It fits
+  and it works; whether that turn lasts is not known yet.
+
+The file checks that the leads clear the top wall and the lid screw boss in that corner.
 
 ### Measurements
 
@@ -221,7 +235,7 @@ A swapped power cable within half a millimetre of 2.87 needs no reprint.
 ### Printing and fitting
 
 PETG, no supports. Box on its back with the open side up, lid on its outside face, clamp flat.
-0.2 mm layers, 4 perimeters, 20% infill. Roughly 140 g of PETG.
+0.2 mm layers, 4 perimeters, 20% infill. The first box sliced to 2 h 06 min and about 65 g.
 
 The ears sit over the gaps between glands, so a straight driver still reaches the bottom two
 with the glands fitted. The USB-C plug goes up through the slot from below and into the board,
@@ -234,6 +248,22 @@ openscad -o box.stl   -D 'part="box"'   hardware/greenhouse-door-box.scad
 openscad -o lid.stl   -D 'part="lid"'   hardware/greenhouse-door-box.scad
 openscad -o clamp.stl -D 'part="clamp"' hardware/greenhouse-door-box.scad
 ```
+
+For the soldered box, add `-D 'bo_leads="soldered"'` to the box and the lid. The lid follows
+the box's height; the clamp is the same for both.
+
+### Screws
+
+| Where | Screw | Note |
+|---|---|---|
+| ESP32 | M2, 6 or 8 mm, 2 or 4 of them | No longer than 8, or the tip reaches the back face |
+| Breakout | M2, 4 to 6 mm, 2 | The rests under its terminal edge take the screwdriver's push |
+| Lid | M3, 10 or 12 mm, 4 | |
+| Clamp | M3, 10 or 12 mm, 2 | Tighten until the cable will not slide; the bar never bottoms out |
+| Mounting | #8 wood screw, pan or washer head, 4 | |
+
+The pilots are sized for self-tapping screws, but machine screws cut their own thread in PETG:
+stop when the head seats. Stainless, since the box sees condensation most nights.
 
 `part="all"` shows the assembly with the boards, glands and plug drawn in, to check the fit
 after changing a number. Every render prints the outside size and the thread check.

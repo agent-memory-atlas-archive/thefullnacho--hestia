@@ -27,6 +27,11 @@
 // wall. The clamp's V-groove is sized from the measured cable, takes half a millimetre either
 // way, and never bottoms out on its bosses, so the screws keep pulling until the cable is held.
 //
+// The probe breakout's header is right-angle, so its leads leave the board's top edge flat,
+// pointing at the top wall rather than up at the lid. `bo_leads` picks the box for them:
+// "plugged" leaves room for the jumpers as they come, and "soldered" is the first print, 7 mm
+// shorter, which only fits once the three leads are soldered to the header pins with a tight turn.
+//
 // Modelled as it hangs: x across, y out from the wall toward the lid, z up. `part` turns each
 // piece onto its print face. "all" shows the assembly with the boards and glands as ghosts,
 // to check the fit after changing a number.
@@ -46,6 +51,7 @@
 
 part        = "all";  // "all" | "box" | "lid" | "clamp"
 spare_gland = true;   // fourth PG7 hole, for a second DS18B20 on the same 1-wire bus later
+bo_leads    = "plugged"; // "plugged" | "soldered": the breakout's leads, see the header above
 lid_inserts = false;  // true cuts the lid bosses for M3 heat-set inserts instead of self-tappers
 explode     = 30;     // "all" only: how far the lid stands off, so the inside shows
 
@@ -75,6 +81,10 @@ bo_hole_span = 15.5;  // hole centres, measured; taken as centred on the edge
 bo_hole_in   = 2.25;  // hole centres in from the header edge
 bo_stack     = 10.9;
 bo_post_h    = 5;     // clears the solder joints underneath
+bo_header_w  = 9;     // the three leads side by side, heatshrink included
+// How far the leads stand out past the header edge: a jumper's 14.5 mm housing plus heatshrink
+// and its turn, or for soldered leads, the room the first print had.
+bo_lead_reach = bo_leads == "soldered" ? 12.5 : 21;
 
 // PG7 glands. Measured 2026-10-09.
 gland_thread = 12.4;
@@ -147,7 +157,7 @@ pitch_min = nut_ac + max(finger, driver);
 band_w = cab_x + plug_len + bend_r + board[0] + 4 + bo_edge + 3 + wall;
 row_w  = g0 + 3*pitch_min + nut_ac/2 + finger + reach;
 W_o    = max(band_w, row_w);
-H_o    = max(board_z + board[1], bo_z + bo_other) + 4 + wall;
+H_o    = max(board_z + board[1] + 4, bo_z + bo_other + bo_lead_reach + 0.5) + wall;
 W_i    = W_o - 2*wall;
 
 g3      = W_o - reach - finger - nut_ac/2;         // last gland centre
@@ -195,6 +205,11 @@ assert(v_depth >= (cable_d + cable_tol)/2*sqrt(0.5), "V too shallow for the fatt
 assert(board_x - cab_x >= plug_len + bend_r, "no room for the USB plug and its bend");
 if (g3 < bo_x || g3 > bo_x + bo_edge)
     echo("WARNING: the probe gland is no longer under the breakout");
+lead_top = bo_z + bo_other + bo_lead_reach;
+assert(bo_x + bo_edge/2 + bo_header_w/2 + 0.5 <= W_o - reach || lead_top <= H_o - reach,
+       "the breakout's leads run into the lid screw boss in the top corner");
+echo(str("Breakout leads (", bo_leads, "): ", r1(H_o - wall - (bo_z + bo_other)),
+         " mm from its header edge to the top wall, for ", bo_lead_reach));
 echo(str("Box: ", r1(W_o), " wide x ", r1(H_o), " tall x ", r1(D_b + lid_t),
          " deep with the lid. Ears add ", ear_reach + ear_w/2, " top and bottom"));
 echo(str("Gland pitch ", r1(g_pitch), ", first locknut clears the next by ",
@@ -320,6 +335,9 @@ module ghosts() {
     color("royalblue") translate([bo_x, wall + bo_post_h, bo_z]) cube([bo_edge, pcb_t, bo_other]);
     color("orange", 0.35) translate([bo_x, wall + bo_post_h + pcb_t, bo_z])
         cube([bo_edge, bo_stack - pcb_t, bo_other]);
+    color("orange", 0.35)
+        translate([bo_x + bo_edge/2 - bo_header_w/2, wall + bo_post_h + pcb_t, bo_z + bo_other])
+            cube([bo_header_w, 4, bo_lead_reach]);
     for (x = glands) {
         color("gray") translate([x, gland_y, nut_seat(x)]) cylinder(d = nut_ac, h = nut_t, $fn = 6);
         color("gray") translate([x, gland_y, -washer_t]) cylinder(d = gland_thread, h = thread_len);
