@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CC-BY-4.0
+// (c) 2026 TheFullNacho (HomesteaderLabs). See LICENSE.md in this directory.
+//
 // Hestia greenhouse door box: an enclosure for the greenhouse-door ESP32 and its DS18B20
 // breakout, screwed to the wood framing inside the greenhouse. Wiring and config live in
 // deploy/esphome/greenhouse-door.yaml.

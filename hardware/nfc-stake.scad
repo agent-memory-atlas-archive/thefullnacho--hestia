@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CC-BY-4.0
+// (c) 2026 TheFullNacho (HomesteaderLabs). See LICENSE.md in this directory.
+//
 // Hestia NFC garden stake: a named marker with an NFC tag sealed inside it.
 //
 // A stuck-on sticker is the thing that fails outdoors. The antenna is aluminium on

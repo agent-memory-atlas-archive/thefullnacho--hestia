@@ -2,6 +2,10 @@
 
 Printable parts for the capture paths. Nothing here is required to run Hestia.
 
+The models (`*.scad` and the STLs made from them) are CC BY 4.0: print, remix and sell freely,
+with credit to HomesteaderLabs. `make_tags.py` stays AGPL-3.0 with the rest of the repo. See
+[LICENSE.md](LICENSE.md).
+
 ## NFC garden stake (`nfc-stake.scad`)
 
 A named ground marker with an NFC tag sealed inside it, for the places a capture tap has

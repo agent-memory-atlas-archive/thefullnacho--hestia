@@ -306,6 +306,10 @@ Before running it, read **[SECURITY.md](SECURITY.md)**: the brain has no built-i
 and can control your Home Assistant devices, so it must stay on a private network (Tailscale/LAN)
 and must never be exposed to the public internet. It deliberately has no shell tool.
 
+The printable models in [hardware/](hardware/), the `.scad` files and the STLs made from them,
+are CC BY 4.0 instead, so they can be printed, remixed and sold with credit. See
+[hardware/LICENSE.md](hardware/LICENSE.md).
+
 © 2026 TheFullNacho and contributors.
 
 ### Seasonal maintenance
