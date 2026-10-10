@@ -7,6 +7,26 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-10 - session close: the greenhouse door board is on the door
+
+- **Done, reported by the operator, not checked from here:** the box is mounted on the door frame,
+  and the offline test worked. The board ran from a battery for it; mains power goes in tomorrow
+  morning, 2026-10-11.
+- **STLs in `data/`:** `greenhouse-door-box-plugged.stl` and `greenhouse-door-lid-plugged.stl`
+  (the default box, with the name on the back) now sit beside the soldered box the operator
+  printed. `greenhouse-door-clamp.stl` serves both. Gitignored, as `data/` is.
+- **Wiki:** the brand thesis now records that printable models are CC BY 4.0 with a text-only
+  mark; the build-loop edge stays PLANNED until the post ships.
+- **In flight:** nothing in code. The board waits on power, then on a cold night.
+- **Next concrete action:** power on the door frame, then the first cold night with the heater
+  on for the 10-minute door test, exported within 10 days of the night.
+
+[non-production] Run mains power to the door board, 2026-10-11 morning (not queued, at the
+operator's word).
+[non-production] The cold-night door test (already in the operator's queue since 2026-09-30).
+
+---
+
 ## 2026-10-10 - the box comes plugged or soldered, carries the name, and the models are CC BY
 
 - **On `main` (13ee8fe):** `bo_leads` picks the box. `"plugged"` (default) is 7.5 mm taller so the
