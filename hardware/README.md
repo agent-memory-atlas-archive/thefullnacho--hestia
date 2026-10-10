@@ -211,11 +211,19 @@ flat, pointing at the top wall rather than up at the lid. The first print missed
 picks between two boxes:
 
 - **`"plugged"`** (default): 7.5 mm taller, and the jumpers go on as they come.
-- **`"soldered"`**: the box as first printed. The three leads are soldered to the header pins
-  with a tight turn, heatshrink on each and a little longer on the last for support. It fits
-  and it works; whether that turn lasts is not known yet.
+- **`"soldered"`**: the box as first printed, apart from the name on the back. The three leads
+  are soldered to the header pins with a tight turn, heatshrink on each and a little longer on
+  the last for support. It fits and it works; whether that turn lasts is not known yet.
 
 The file checks that the leads clear the top wall and the lid screw boss in that corner.
+
+### The name on the back
+
+The back face carries `mark`, "HomesteaderLabs" by default, recessed 0.6 mm and clear of every
+pilot hole. Once the box is up it sits against the framing, so it is a maker's mark rather than
+a label. It prints into the face on the bed, so a first layer squashed hard enough to spread
+will close the small loops in the e and the a. `mark = ""` leaves it off; any other word works,
+though a long one wants a smaller `mark_size`.
 
 ### Measurements
 

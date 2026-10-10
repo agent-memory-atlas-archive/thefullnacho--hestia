@@ -32,6 +32,10 @@
 // "plugged" leaves room for the jumpers as they come, and "soldered" is the first print, 7 mm
 // shorter, which only fits once the three leads are soldered to the header pins with a tight turn.
 //
+// The back face carries a recessed name, set by `mark`. It sits against the framing once the
+// box is up, and it reads the right way round from behind, which is also how it reads on the
+// underside of the print. It is a string, so it can change or go ("") without touching the rest.
+//
 // Modelled as it hangs: x across, y out from the wall toward the lid, z up. `part` turns each
 // piece onto its print face. "all" shows the assembly with the boards and glands as ghosts,
 // to check the fit after changing a number.
@@ -52,6 +56,7 @@
 part        = "all";  // "all" | "box" | "lid" | "clamp"
 spare_gland = true;   // fourth PG7 hole, for a second DS18B20 on the same 1-wire bus later
 bo_leads    = "plugged"; // "plugged" | "soldered": the breakout's leads, see the header above
+mark        = "HomesteaderLabs"; // recessed into the back face; "" for none
 lid_inserts = false;  // true cuts the lid bosses for M3 heat-set inserts instead of self-tappers
 explode     = 30;     // "all" only: how far the lid stands off, so the inside shows
 
@@ -134,6 +139,11 @@ ear_reach = 7;       // box face to the ear hole; clears a #8 pan head
 // gland is in the way of a straight driver to the bottom ears. They come out about 50 apart,
 // which lands all four on a 2x4's 89 mm face.
 
+// Mark
+mark_size  = 8.6;    // HomesteaderLabs comes out about 100 mm wide and 9 tall
+mark_depth = 0.6;    // three 0.2 mm layers into the face that sits on the bed
+mark_z     = 10;     // centre height on the back face, below every pilot hole
+
 $fn = 48;
 
 // ---------------------------------------------------------------------------------------
@@ -208,6 +218,9 @@ if (g3 < bo_x || g3 > bo_x + bo_edge)
 lead_top = bo_z + bo_other + bo_lead_reach;
 assert(bo_x + bo_edge/2 + bo_header_w/2 + 0.5 <= W_o - reach || lead_top <= H_o - reach,
        "the breakout's leads run into the lid screw boss in the top corner");
+assert(mark == "" || (mark_z + mark_size*0.52 + 1 <= clamp_z - m3_pilot/2
+                     && mark_z - mark_size*0.52 >= 1),
+       "the mark runs into the clamp's pilot holes or off the bottom: move mark_z or mark_size");
 echo(str("Breakout leads (", bo_leads, "): ", r1(H_o - wall - (bo_z + bo_other)),
          " mm from its header edge to the top wall, for ", bo_lead_reach));
 echo(str("Box: ", r1(W_o), " wide x ", r1(H_o), " tall x ", r1(D_b + lid_t),
@@ -279,6 +292,9 @@ module holes() {
     for (p = lid_screws)
         at_y(p, D_b - (lid_inserts ? insert_h : 12))
             cylinder(d = lid_inserts ? insert_d : m3_pilot, h = 13);
+    if (mark != "") xz(-1, 1 + mark_depth) translate([W_o/2, mark_z])
+        text(mark, size = mark_size, halign = "center", valign = "center",
+             font = "Liberation Sans:style=Bold");
     // Pilots stop 1.5 short of the back face, so no screw tip reaches the wood.
     for (p = board_pts) at_y(p, wall - 1.5) cylinder(d = m2_pilot, h = standoff + 2);
     for (p = bo_pts)    at_y(p, wall - 1.5) cylinder(d = m2_pilot, h = bo_post_h + 2);
