@@ -1,0 +1,16 @@
+{
+  "name": "Hestia",
+  "short_name": "Hestia",
+  "description": "Hestia — the homestead brain: chat, clips, recipes, status.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0e0f13",
+  "background_color": "#0e0f13",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

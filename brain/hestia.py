@@ -129,6 +129,10 @@ PIPER_ADDR = _hostport("HESTIA_PIPER", "127.0.0.1:10200")      # wyoming-piper (
 STT_RATE = 16000  # faster-whisper wants 16 kHz mono s16le; ffmpeg resamples whatever the browser sends
 
 app = FastAPI(title="Hestia", version="0.4-phase4")
+# --- clips router (added 2026-10-13; delete this block to revert) ---
+import clips as _clips_mod  # noqa: E402
+app.include_router(_clips_mod.router)
+# --- end clips block ---
 client = httpx.AsyncClient(base_url=OLLAMA, timeout=httpx.Timeout(300.0, connect=10.0))
 # Keep potentially blocking sync tools out of asyncio's shared default executor. A slot is
 # released only when the underlying function actually ends, not when its caller times out.
@@ -137,7 +141,7 @@ _tool_slots = asyncio.BoundedSemaphore(TOOL_WORKERS)
 
 # Photo intake (iOS Shortcuts / Telegram): images land on disk under HESTIA_PHOTO_DIR and a
 # `photo` event is logged against the named entity (see records_store.attach_photo). Token auth.
-INGEST_TOKEN = os.environ.get("INGEST_TOKEN", "")
+INGEST_TOKEN = os.environ.get("HESTIA_INGEST_TOKEN", "") or os.environ.get("INGEST_TOKEN", "")
 PHOTO_DIR = config.PHOTO_DIR
 
 # NFC capture (see nfc.py): a tag-triggered harvest/service log that never touches the model —
