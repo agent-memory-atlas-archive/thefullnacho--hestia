@@ -1,0 +1,145 @@
+/* Hestia's shared look: colour tokens, the top bar, focus rings and buttons. Every page the
+   brain serves links this file, so the chat app and the recipe pages read as one app.
+   Dark is the default; a light set takes over when the phone is in light mode (a sunny
+   kitchen or the garden), keyed off prefers-color-scheme with no toggle to forget. */
+:root {
+  color-scheme: dark;
+  --bg: #0c0d12;
+  --panel: #14161f;
+  --panel-trans: rgba(20, 22, 31, 0.85);
+  --raised: #161822;
+  --sunk: #0f1017;
+  --line: #2a2d3b;
+  --line-subtle: rgba(255, 255, 255, 0.08);
+  --hover: rgba(255, 255, 255, 0.06);
+  --press: rgba(255, 255, 255, 0.1);
+  --text: #eaebee;
+  --text-bright: #ffffff;
+  --muted: #a0a6b6;
+  --accent: #e5985c;
+  --accent-strong: #efa66d;
+  --accent-ink: #18110b;
+  --accent-glow: rgba(229, 152, 92, 0.15);
+  --accent-line: rgba(229, 152, 92, 0.35);
+  --em: #f2c89b;
+  --code: #f5d0a9;
+  --ok: #3ecf8e;
+  --ok-text: #bfe9d4;
+  --ok-line: rgba(62, 207, 142, 0.25);
+  --warn: #e0a23c;
+  --warn-text: #f0be87;
+  --warn-bg: #2b1f11;
+  --warn-line: #5c4320;
+  --bad: #f0556a;
+  --bad-text: #f0a9b4;
+  --bad-bg: #251417;
+  --bad-line: #4a2228;
+  --me-bg: linear-gradient(135deg, #c77438, #a85a26);
+  --me-text: #ffffff;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --ember: rgba(229, 152, 92, 0.07);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #f6f3ee;
+    --panel: #ffffff;
+    --panel-trans: rgba(255, 255, 255, 0.88);
+    --raised: #ffffff;
+    --sunk: #f0ece5;
+    --line: #d9d3c9;
+    --line-subtle: rgba(40, 30, 20, 0.12);
+    --hover: rgba(40, 30, 20, 0.05);
+    --press: rgba(40, 30, 20, 0.09);
+    --text: #1f1d1a;
+    --text-bright: #000000;
+    --muted: #5c5850;
+    --accent: #a8541c;
+    --accent-strong: #8f4513;
+    --accent-ink: #ffffff;
+    --accent-glow: rgba(168, 84, 28, 0.1);
+    --accent-line: rgba(168, 84, 28, 0.4);
+    --em: #8a4a17;
+    --code: #7a3d10;
+    --ok: #1d8a5a;
+    --ok-text: #155c3d;
+    --ok-line: rgba(29, 138, 90, 0.35);
+    --warn: #b7791f;
+    --warn-text: #7a4f0e;
+    --warn-bg: #fdf3e1;
+    --warn-line: #e9cf9f;
+    --bad: #c8283f;
+    --bad-text: #8f1c2d;
+    --bad-bg: #fdecee;
+    --bad-line: #f1bcc4;
+    --me-bg: linear-gradient(135deg, #b8632a, #9a4d1c);
+    --shadow: 0 1px 4px rgba(40, 30, 20, 0.1);
+    --shadow-pop: 0 14px 34px rgba(40, 30, 20, 0.18);
+    --ember: rgba(229, 152, 92, 0.1);
+  }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; overflow-x: hidden; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 15px/1.6 var(--font); letter-spacing: -0.01em;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+a { color: var(--accent); text-underline-offset: 3px; }
+[hidden] { display: none !important; }
+
+/* Keyboard users get a ring on everything they can reach; taps and clicks do not. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+:focus:not(:focus-visible) { outline: none; }
+/* Headings take focus only so a screen reader lands on the new view; they never need a ring. */
+[tabindex="-1"]:focus { outline: none; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* The shared top bar. The app adds its menu and controls; plain pages use it as-is. */
+.topbar {
+  display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+  border-bottom: 1px solid var(--line-subtle); background: var(--panel-trans);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  position: sticky; top: 0; z-index: 10;
+}
+.topbar .brand {
+  font-size: 15px; margin: 0; font-weight: 600; letter-spacing: 0.2px; color: var(--text-bright);
+  text-decoration: none; white-space: nowrap;
+}
+.topbar .brand b { color: var(--accent); font-weight: 600; }
+.topbar .spacer { flex: 1; }
+
+.pill-btn {
+  background: var(--hover); border: 1px solid var(--line-subtle); color: var(--muted);
+  border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12.5px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  transition: background .2s, color .2s, border-color .2s;
+}
+.pill-btn:hover, .pill-btn:active { background: var(--press); color: var(--text-bright); }
+.pill-btn.on { color: var(--text-bright); border-color: var(--accent); background: var(--accent-glow); }
+
+.icon-btn {
+  background: none; border: 1px solid var(--line-subtle); color: var(--text);
+  border-radius: 10px; width: 36px; height: 36px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background .2s, color .2s, border-color .2s;
+}
+.icon-btn:hover, .icon-btn:active { background: var(--press); color: var(--text-bright); }
+
+.card {
+  background: var(--panel); border: 1px solid var(--line-subtle);
+  border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow);
+}
+.card h2 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+  margin: 0 0 12px; font-weight: 600;
+}
+.muted { color: var(--muted); }
