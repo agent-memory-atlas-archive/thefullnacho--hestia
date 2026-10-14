@@ -7,7 +7,7 @@ memory, then runs a tool-calling loop against Ollama (qwen3:14b) — calling `ho
 to control the house, `memory` to remember/recall — until the model produces a final
 answer, which it returns to the client as a normal chat completion.
 
-Internally it speaks to Ollama's native /api/chat (structured tool_calls). Tool
+Internally it speaks to a model backend: Ollama's native /api/chat by default, or any OpenAI-compatible /v1/chat/completions when HESTIA_BACKEND=openai (structured tool_calls either way). Tool
 execution is sync, run in a bounded worker pool. Tool-selection rounds are buffered;
 streaming clients receive incremental final synthesis when tools are disabled.
 """
@@ -60,6 +60,15 @@ from prompt import SYSTEM_PROMPT  # noqa: E402
 
 OLLAMA = os.environ.get("HESTIA_OLLAMA", "http://127.0.0.1:11434")
 MODEL = os.environ.get("HESTIA_MODEL", "qwen3:14b")
+# Model backend: "ollama" (native /api/chat) or "openai" (OpenAI-compatible
+# /v1/chat/completions, e.g. mlx_lm.server on the tailnet MacBook).
+BACKEND = os.environ.get("HESTIA_BACKEND", "ollama")
+# Normalized: request paths carry the full "/v1/chat/completions", so a "/v1"
+# suffix here would double up (httpx merges base + request paths).
+_OPENAI_RAW = os.environ.get("HESTIA_OPENAI_BASE", "http://127.0.0.1:8080/v1").rstrip("/")
+OPENAI_BASE = _OPENAI_RAW[:-3] if _OPENAI_RAW.endswith("/v1") else _OPENAI_RAW
+OPENAI_KEY = os.environ.get("HESTIA_OPENAI_KEY", "not-needed")
+OPENAI_MODEL = os.environ.get("HESTIA_OPENAI_MODEL", MODEL)
 # Explicit, not left to each model's undocumented Ollama default — some GGUFs default far
 # below what the real system prompt + tool surface needs (~5.7k tokens worst case) and
 # silently 400 instead of truncating. See brain/eval_keymatch.py's num_ctx fix.
@@ -134,6 +143,11 @@ import clips as _clips_mod  # noqa: E402
 app.include_router(_clips_mod.router)
 # --- end clips block ---
 client = httpx.AsyncClient(base_url=OLLAMA, timeout=httpx.Timeout(300.0, connect=10.0))
+oai_client = httpx.AsyncClient(
+    base_url=OPENAI_BASE,
+    headers={"Authorization": f"Bearer {OPENAI_KEY}"},
+    timeout=httpx.Timeout(300.0, connect=10.0),
+)
 # Keep potentially blocking sync tools out of asyncio's shared default executor. A slot is
 # released only when the underlying function actually ends, not when its caller times out.
 _tool_executor = ThreadPoolExecutor(max_workers=TOOL_WORKERS, thread_name_prefix="hestia-tool")
@@ -275,6 +289,100 @@ def _almanac_pages() -> str:
         if p.is_file():
             pages.append(p.read_text(encoding="utf-8").rstrip())
     return "\n\n".join(pages)
+
+
+async def _openai_chat(messages: list[dict], schemas: list | None = None) -> dict:
+    """OpenAI-compatible backend (POST /v1/chat/completions), e.g. mlx_lm.server.
+
+    Same contract as _ollama_chat: returns {"role","content","tool_calls"} with
+    arguments as dicts. Ollama-only fields (think, options/num_ctx, format) are
+    dropped; the repair prompt text is unchanged. Selected by HESTIA_BACKEND=openai.
+    """
+    trace = _trace.get()
+    body = {"model": OPENAI_MODEL, "messages": messages,
+            "tools": tools.SCHEMAS if schemas is None else schemas,
+            "stream": False, "temperature": 0.3, "max_tokens": OUTPUT_TOKENS}
+    repair = trace.repair_tool if trace else ''
+    if trace:
+        trace.repair_tool = ''
+    schema = next((s['function']['parameters'] for s in body['tools']
+                   if s['function']['name'] == repair), None) if repair else None
+    if schema is None:
+        repair = ''   # never repair through a tool this request did not offer
+    if repair:
+        body['tools'] = []
+        body['temperature'] = 0
+        body['messages'] = [*messages, {'role': 'system', 'content':
+            f'Return only the JSON argument object for the {repair} tool, matching the supplied schema. '
+            'The harness will validate it before execution. Do not claim completion. '
+            'Omit optional fields the user did not specify, especially location and timestamps. '
+            'For events today or now, omit ts so the datastore supplies its own clock. '
+            'Choose the event kind from its meaning (health, chore, sighting, or note). '
+            'Argument schema: ' + json.dumps(schema)}]
+    sink = _stream_sink.get()
+    # Only a final synthesis with tools disabled can emit user-visible text safely.
+    if sink and not repair and not body['tools'] and not (trace and trace.actions):
+        body['stream'] = True
+        content = []
+        async with oai_client.stream('POST', '/v1/chat/completions', json=body) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line.startswith('data:'):
+                    continue
+                data = line[5:].strip()
+                if data == '[DONE]':
+                    break
+                try:
+                    event = json.loads(data)
+                except ValueError:
+                    continue
+                delta = ((event.get('choices') or [{}])[0].get('delta') or {}).get('content', '')
+                if delta:
+                    content.append(delta)
+                    await sink(delta)
+                    if trace:
+                        trace.emitted = True
+                        trace.streamed_text += delta
+        message = {'role': 'assistant', 'content': ''.join(content)}
+    else:
+        r = await oai_client.post("/v1/chat/completions", json=body)
+        r.raise_for_status()
+        payload = r.json()
+        oai_msg = (payload.get('choices') or [{}])[0].get('message') or {}
+        message = {'role': oai_msg.get('role', 'assistant'),
+                   'content': oai_msg.get('content') or ''}
+        norm_calls = []
+        for tc in oai_msg.get('tool_calls') or []:
+            fn = tc.get('function') or {}
+            args = fn.get('arguments')
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except ValueError:
+                    pass  # leave the raw string; downstream validation rejects it safely
+            norm_calls.append({'function': {'name': fn.get('name'), 'arguments': args}})
+        if norm_calls:
+            message['tool_calls'] = norm_calls
+        if trace:
+            usage = payload.get('usage') or {}
+            trace.prompt_tokens += usage.get('prompt_tokens', 0)
+            trace.completion_tokens += usage.get('completion_tokens', 0)
+    if trace:
+        trace.model_calls += 1
+    if repair:
+        try:
+            args = json.loads(message.get('content', ''))
+        except (ValueError, TypeError):
+            return {'content': ''}
+        return {'content': '', 'tool_calls': [{'function': {'name': repair, 'arguments': args}}]}
+    return message
+
+
+async def _model_chat(messages: list[dict], schemas: list | None = None) -> dict:
+    """Backend dispatch: Ollama native or OpenAI-compatible. Same contract."""
+    if BACKEND == "openai":
+        return await _openai_chat(messages, schemas)
+    return await _ollama_chat(messages, schemas)
 
 
 async def _ollama_chat(messages: list[dict], schemas: list | None = None) -> dict:
@@ -576,7 +684,7 @@ async def _agent_loop(messages: list[dict]) -> str:
         except ValueError as e:
             return str(e)
         try:
-            msg = await asyncio.wait_for(_ollama_chat(convo, schemas), timeout=remaining)
+            msg = await asyncio.wait_for(_model_chat(convo, schemas), timeout=remaining)
         except asyncio.TimeoutError:
             _log(f"model call exceeded remaining {remaining:.1f}s at step {step}")
             return _TOO_SLOW
