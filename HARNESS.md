@@ -84,8 +84,40 @@ remain buffered so speculative action claims do not reach the user. Client disco
 cancels further model work; already dispatched writes can still complete. Replaying a
 completed request streams its saved answer. Streamed replies use the same note gate.
 The bundled browser and HA clients retain request keys for transport retries within
-their current session. They continue to use non-streaming replies; API streaming
-clients can opt in with `stream: true`.
+their current session. HA continues to use non-streaming replies; API streaming
+clients, the chat app among them, opt in with `stream: true`.
+
+## Threads and live events
+
+Conversation history lives on the brain, not in the client. `threads_store.py` keeps it
+in `data/hestia.db` beside the records, so it shares their 0600 perms and the nightly
+backup. One brain, many thin windows: a thread started on the phone is there in the
+terminal, and clearing Safari's data loses nothing. The `main` thread always exists.
+
+    GET    /v1/threads                  {"threads": [{id, title, created, updated, count}]}
+    POST   /v1/threads                  {title?, messages?}  messages = one-time localStorage import
+    GET    /v1/threads/{id}             thread + messages [{role, content, receipts, created}]
+    PATCH  /v1/threads/{id}             {title}
+    DELETE /v1/threads/{id}             main refuses (400); clear it instead
+    DELETE /v1/threads/{id}/messages    clear
+
+A chat request with `thread_id` sends exactly one user message, the new one. The brain
+assembles the stored history plus that message, dropping the oldest exchanges first by
+bytes (80 messages / 96 KB, under the request validator's 100 / 128 KB), always opening
+on a user message. A long thread therefore can never wedge itself on the request limit.
+When the turn finishes, the user message and the reply (with its receipts) are appended
+in one transaction; a replayed key appends nothing. A busy, slow or backend-down answer
+with no action is not stored, matching the key release above. The first exchange titles
+a still-default thread from the question. Without `thread_id`, nothing changes.
+
+`hestia_events: true` opts a client into two extras. While streaming, each tool call
+is announced before dispatch as `{"object": "hestia.status", "status": "Checking the
+weather…"}`, a chunk with no `choices`. The phrase comes from a fixed table in
+`tool_phrases.py` keyed by tool and arguments, never from the model, so it states what
+is being dispatched, not whether it worked. The final chunk, or the JSON response when
+not streaming, carries `receipts: [{tool, status, text}]` from the turn's actions, with
+status succeeded, failed or unknown. Without the flag the wire format is unchanged, which
+keeps HA's Assist and other OpenAI clients unaffected.
 
 ## Background learning
 

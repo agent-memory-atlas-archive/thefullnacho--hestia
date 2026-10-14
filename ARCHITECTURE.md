@@ -18,6 +18,9 @@ single reframe kills the three complaints that started this:
 
 - **Siri friction** — voice should hit *your* brain directly, not a closed router.
 - **Alexa's amnesia** — memory lives in the brain (server-side), not the client.
+  So does conversation history: chat threads are stored on the brain
+  (`threads_store.py`), so the phone and the terminal see the same threads and a
+  wiped browser loses nothing. See `HARNESS.md`, "Threads and live events".
 - **"Disconnected from intelligence outside"** — it's a networking gap, not a
   capability gap. Close the network, you're never disconnected.
 

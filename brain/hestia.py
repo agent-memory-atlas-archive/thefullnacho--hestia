@@ -52,7 +52,10 @@ import whelp_form  # noqa: E402
 import board  # noqa: E402
 import note_taker  # noqa: E402
 import records_store  # noqa: E402
+import reminders_store  # noqa: E402
 import review_notes  # noqa: E402
+import threads_store  # noqa: E402
+import tool_phrases  # noqa: E402
 import tools  # noqa: E402
 import briefing_store  # noqa: E402
 import recipe_review  # noqa: E402
@@ -98,6 +101,7 @@ class TurnTrace:
     backend: dict = field(default_factory=dict)
     tools: list = field(default_factory=list)
     actions: list = field(default_factory=list)
+    receipts: list = field(default_factory=list)   # [{tool, status, text}], aligned with actions
     deadline: float = 0.0
     emitted: bool = False
     streamed_text: str = ""
@@ -119,6 +123,8 @@ MAX_TOOL_CALLS = int(os.environ.get("HESTIA_MAX_TOOL_CALLS", "16"))
 MAX_ACTIVE_TURNS = max(1, int(os.environ.get("HESTIA_ACTIVE_TURNS", "1")))
 _turn_slots = asyncio.BoundedSemaphore(MAX_ACTIVE_TURNS)
 _stream_sink: ContextVar[object] = ContextVar("stream_sink", default=None)
+# Set only for clients that opted in with hestia_events: receives a status phrase per tool call.
+_event_sink: ContextVar[object] = ContextVar("event_sink", default=None)
 _BUSY = "The brain is busy with another request. Please try again shortly."
 _NO_ACTION = "I haven't completed the requested action. Please clarify the target or try again."
 _EMPTY_REPLY = "The model returned no usable answer. Please try again."
@@ -541,6 +547,13 @@ def _short(args: dict) -> str:
     return str(sorted(args)) if isinstance(args, dict) else "invalid"
 
 
+def _act(trace: TurnTrace, name: str, result: ToolResult) -> None:
+    """Record one action outcome, keeping the tool's name beside it for the client's receipts.
+    ToolResult itself stays name-free because its JSON is what the model reads back."""
+    trace.actions.append(result)
+    trace.receipts.append({"tool": name, "status": result.status, "text": result.data})
+
+
 _TOO_SLOW = "Sorry — that took too long to pull together (a backend was slow). Try again in a moment?"
 _BACKEND_DOWN = "Sorry, my model backend is having trouble right now. Try again in a moment?"
 
@@ -554,6 +567,11 @@ async def _run_tool(name: str, args: dict, budget: float) -> tuple[str, str]:
     when capacity is exhausted. A hung backend can therefore degrade tool replies, but cannot
     turn into unbounded thread growth or block unrelated FastAPI work.
     """
+    if emit := _event_sink.get():
+        try:
+            await emit(tool_phrases.phrase(name, args))
+        except Exception:  # noqa: BLE001 — a status line must never cost the tool call
+            pass
     source = _recipe_source.get()
     def dispatch(tool_name, tool_args):
         token = tools.recipe.SOURCE_CONTEXT.set(source)
@@ -590,7 +608,7 @@ async def _run_tool(name: str, args: dict, budget: float) -> tuple[str, str]:
         return f"Error: {name} timed out after {budget:.0f}s (backend slow/unreachable).", "timeout"
     except asyncio.CancelledError:
         if (trace := _trace.get()) and mutation(name, args):
-            trace.actions.append(ToolResult('unknown',
+            _act(trace, name, ToolResult('unknown',
                 f'{name} was interrupted after dispatch; check operation status before retrying.',
                 operation_store.digest([trace.request_id, name, args]), 'interrupted'))
         raise
@@ -763,7 +781,7 @@ async def _agent_loop(messages: list[dict]) -> str:
                     _log(f"step {step} tool={name!r} MALFORMED args refused")
                     rejected = ToolResult('failed', f"Arguments for {name} were not valid JSON; nothing was run.", error_code='invalid_arguments')
                     if trace := _trace.get():
-                        trace.actions.append(rejected)
+                        _act(trace, name, rejected)
                     convo.append({"role": "tool", "tool_name": name, "content": rejected.message()})
                     continue
             error = validate(name, args, schemas)
@@ -776,7 +794,7 @@ async def _agent_loop(messages: list[dict]) -> str:
             if error:
                 rejected = ToolResult('failed', error, error_code='invalid_or_disallowed')
                 if trace := _trace.get():
-                    trace.actions.append(rejected)
+                    _act(trace, name, rejected)
                 convo.append({'role': 'tool', 'tool_name': name, 'content': rejected.message()})
                 continue
             sig = f"{name}|{json.dumps(args, sort_keys=True, default=str)}"
@@ -812,7 +830,7 @@ async def _agent_loop(messages: list[dict]) -> str:
             fact = receipt(name, args, result, outcome,
                            operation_store.digest([trace.request_id, name, args]) if trace else '')
             if trace and mutation(name, args):
-                trace.actions.append(fact)
+                _act(trace, name, fact)
             seen[sig] = fact.message()
             last_result = str(result)
             convo.append({"role": "tool", "tool_name": name, "content": context_budget.evidence("tool result " + name, fact.message(), TOOL_RESULT_BYTES)})
@@ -1039,6 +1057,19 @@ async def operation_status(request_id: str):
             "operations": await asyncio.to_thread(operation_store.operations, request_id)}
 
 
+class _Status(str):
+    """A status phrase on the stream queue, told apart from reply text by type."""
+
+
+def _public(comp: dict, events: bool) -> dict:
+    """The completion as this client sees it: receipts only for clients that asked for them,
+    so an OpenAI client (HA's Assist) gets exactly the wire format it always did."""
+    out = {k: v for k, v in comp.items() if k != 'receipts'}
+    if events:
+        out['receipts'] = comp.get('receipts') or []
+    return out
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     raw = bytearray()
@@ -1055,6 +1086,19 @@ async def chat_completions(request: Request):
     messages = body.get('messages') or []
     if error := context_budget.validate_messages(messages):
         return JSONResponse(status_code=400, content={'error': error})
+    events = body.get('hestia_events') is True
+    thread_id = body.get('thread_id')
+    fingerprint = messages
+    if thread_id is not None:
+        # Thread mode: the client sends only the new message; the brain owns the history and
+        # trims it by bytes, so a long thread can never wedge itself on the request limit.
+        if not isinstance(thread_id, str) or len(messages) != 1:
+            return JSONResponse(status_code=400, content={
+                'error': 'With thread_id, send exactly one user message: the new one.'})
+        if not await asyncio.to_thread(threads_store.get, thread_id):
+            return JSONResponse(status_code=404, content={'error': 'Unknown thread.'})
+        fingerprint = [{'thread_id': thread_id}, *messages]
+        messages = await asyncio.to_thread(threads_store.history, thread_id, messages[0])
     key = request.headers.get('Idempotency-Key')
     if key and not re.fullmatch(r'[A-Za-z0-9_-]{8,128}', key):
         return JSONResponse(status_code=400, content={'error': 'Invalid Idempotency-Key.'})
@@ -1062,7 +1106,7 @@ async def chat_completions(request: Request):
     # Only a client-supplied key can be retried, so only keyed requests enter the ledger.
     state, saved = 'new', None
     if key:
-        state, saved = await asyncio.to_thread(operation_store.claim_request, key, messages)
+        state, saved = await asyncio.to_thread(operation_store.claim_request, key, fingerprint)
     if state in ('pending', 'conflict'):
         return JSONResponse(status_code=409, content={
             'error': 'Request is already running or has an unknown outcome.' if state == 'pending' else
@@ -1075,8 +1119,15 @@ async def chat_completions(request: Request):
         content = await run_agent(messages, trace=trace)
         comp = _completion(content, trace)
         comp['request_id'] = trace.request_id
+        if trace.receipts:
+            comp['receipts'] = trace.receipts
+        # A busy/slow/down answer with no action did nothing, so it stays out of the thread
+        # and its key is released: the client's retry runs the turn, it doesn't replay it.
+        idle = content in _NO_LEARN and not trace.actions
+        if thread_id is not None and not idle:
+            await asyncio.to_thread(threads_store.append_exchange, thread_id,
+                                    messages[-1]['content'], content, trace.receipts or None)
         if key:
-            # A busy/slow/down answer ran no write, so a retry must run the turn, not replay it.
             await asyncio.to_thread(operation_store.finish_request, key,
                                     None if content in _NO_LEARN else comp)
         return comp
@@ -1087,6 +1138,7 @@ async def chat_completions(request: Request):
         comp_id = saved['id'] if saved else f'chatcmpl-{trace.request_id}'
         async def produce():
             token = _stream_sink.set(queue.put)
+            status_token = _event_sink.set((lambda s: queue.put(_Status(s))) if events else None)
             try:
                 comp = await execute()
                 completed.append(comp)
@@ -1097,6 +1149,7 @@ async def chat_completions(request: Request):
                     await queue.put('\n' + trace.failure)
                 await queue.put(comp)
             finally:
+                _event_sink.reset(status_token)
                 _stream_sink.reset(token)
 
         async def chunks():
@@ -1115,6 +1168,9 @@ async def chat_completions(request: Request):
                         if not event_task.done():
                             event_task.cancel()
                             await asyncio.gather(event_task, return_exceptions=True)
+                    if isinstance(event, _Status):
+                        yield f'data: {json.dumps({"object": "hestia.status", "status": str(event)})}\n\n'.encode()
+                        continue
                     final = isinstance(event, dict)
                     chunk = {'id': comp_id, 'object': 'chat.completion.chunk',
                              'created': int(time.time()), 'model': trace.model,
@@ -1123,6 +1179,8 @@ async def chat_completions(request: Request):
                     if final:
                         chunk['usage'] = event['usage']
                         chunk['request_id'] = trace.request_id
+                        if events:
+                            chunk['receipts'] = event.get('receipts') or []
                     yield f'data: {json.dumps(chunk)}\n\n'.encode()
                     if final:
                         yield b'data: [DONE]\n\n'
@@ -1142,8 +1200,70 @@ async def chat_completions(request: Request):
     comp = await execute()
     content = comp['choices'][0]['message']['content']
     note = _note_task(messages, content) if not saved and not trace.actions and not trace.failure else None
-    return JSONResponse(comp, background=note, headers={'X-Request-ID': trace.request_id})
+    return JSONResponse(_public(comp, events), background=note, headers={'X-Request-ID': trace.request_id})
 
+
+# --- Threads: the conversation history every window shares (threads_store.py). ---
+
+async def _json_body(request: Request):
+    try:
+        body = await request.json()
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        return None
+    return body if isinstance(body, dict) else None
+
+
+@app.get("/v1/threads")
+async def threads_list():
+    return {"threads": await asyncio.to_thread(threads_store.list_threads)}
+
+
+@app.post("/v1/threads")
+async def threads_create(request: Request):
+    """New thread. `messages` is the one-time import of a phone's localStorage history."""
+    body = await _json_body(request)
+    if body is None:
+        return JSONResponse(status_code=400, content={"error": "Expected a JSON object."})
+    imported = threads_store.clean_messages(body.get("messages", []))
+    if imported is None:
+        return JSONResponse(status_code=400, content={"error":
+            f"messages must be a list of at most {threads_store.MAX_IMPORT} user/assistant text messages."})
+    return await asyncio.to_thread(threads_store.create, body.get("title"), imported)
+
+
+@app.get("/v1/threads/{thread_id}")
+async def threads_get(thread_id: str):
+    thread = await asyncio.to_thread(threads_store.get, thread_id)
+    if not thread:
+        return JSONResponse(status_code=404, content={"error": "Unknown thread."})
+    return {**thread, "messages": await asyncio.to_thread(threads_store.messages, thread_id)}
+
+
+@app.patch("/v1/threads/{thread_id}")
+async def threads_rename(thread_id: str, request: Request):
+    body = await _json_body(request)
+    if body is None or not isinstance(body.get("title"), str):
+        return JSONResponse(status_code=400, content={"error": "Send a JSON object with a string title."})
+    thread = await asyncio.to_thread(threads_store.rename, thread_id, body["title"])
+    if not thread:
+        return JSONResponse(status_code=404, content={"error": "Unknown thread."})
+    return thread
+
+
+@app.delete("/v1/threads/{thread_id}")
+async def threads_delete(thread_id: str):
+    if thread_id == threads_store.MAIN:
+        return JSONResponse(status_code=400, content={"error": "The main thread can be cleared, not deleted."})
+    if not await asyncio.to_thread(threads_store.delete, thread_id):
+        return JSONResponse(status_code=404, content={"error": "Unknown thread."})
+    return {"ok": True}
+
+
+@app.delete("/v1/threads/{thread_id}/messages")
+async def threads_clear(thread_id: str):
+    if not await asyncio.to_thread(threads_store.clear, thread_id):
+        return JSONResponse(status_code=404, content={"error": "Unknown thread."})
+    return {"ok": True}
 
 
 def _file_photo(data: bytes, filename: str, subjects: list[str], domain: str,
