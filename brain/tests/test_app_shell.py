@@ -22,7 +22,7 @@ def _sw_shell() -> list[str]:
     src = (config.CLIENTS_DIR / "sw.js").read_text()
     paths = []
     for name in ("PAGES", "STATIC"):
-        m = re.search(rf"const {name} = \[(.*?)\];", src)
+        m = re.search(rf"const {name} = \[(.*?)\];", src, re.S)
         assert m, f"sw.js no longer declares {name}"
         paths += re.findall(r"'([^']+)'", m.group(1))
     return paths
@@ -63,3 +63,12 @@ def test_app_assets_serve_only_flat_css_and_js(client, tmp_path, monkeypatch):
 def test_clips_page_redirects_into_the_app(client):
     r = client.get("/clips", follow_redirects=False)
     assert r.status_code == 307 and r.headers["location"] == "/app#library"
+
+
+def test_every_asset_the_app_loads_is_precached():
+    """A stylesheet or script chat.html loads but the worker does not list would be missing
+    offline, and one the worker lists but the page dropped is dead weight in the cache."""
+    html = (config.CLIENTS_DIR / "chat.html").read_text()
+    loaded = set(re.findall(r'(?:src|href)="(/app/[a-z0-9-]+\.(?:css|js))"', html))
+    assert loaded
+    assert loaded == {p for p in _sw_shell() if p.startswith("/app/")}

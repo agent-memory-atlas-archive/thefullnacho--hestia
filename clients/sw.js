@@ -1,7 +1,9 @@
-// Hestia app shell service worker v5: network-first for pages (an HTML edit shows up on the
-// next load, no cache bump needed), cache-first for icons, never touches dynamic endpoints.
-const CACHE = 'hestia-shell-v5';
-const PAGES = ['/app', '/clips'];
+// Hestia app shell service worker v6: network-first for the page and its CSS/JS (an edit shows
+// up on the next load, no cache bump needed, and the last good copy still opens offline),
+// cache-first for icons, never touches dynamic endpoints.
+const CACHE = 'hestia-shell-v6';
+const PAGES = ['/app', '/app/theme.css', '/app/app.css', '/app/core.js', '/app/chat.js',
+  '/app/today.js', '/app/status.js', '/app/library.js'];
 const STATIC = ['/manifest.json', '/icon.png', '/icon-192.png', '/icon-512.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll([...PAGES, ...STATIC])).then(() => self.skipWaiting()));

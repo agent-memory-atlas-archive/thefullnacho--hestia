@@ -68,5 +68,5 @@ Auth: header `X-Ingest-Token` = your Hestia ingest token
 - `taken_at` records when it happened; the server also stamps `created_at`
   on upload, so late uploads stay truthful.
 - Keep videos short — the server caps uploads at 200 MB.
-- Browse everything at `http://alex-ms-7e51.tail1690ab.ts.net:8730/clips`
+- Browse everything at `http://alex-ms-7e51.tail1690ab.ts.net:8730/clips` (it opens the app's Library view)
   (Add to Home Screen for the fullscreen app feel).

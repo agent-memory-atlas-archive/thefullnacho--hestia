@@ -1,7 +1,7 @@
 {
   "name": "Hestia",
   "short_name": "Hestia",
-  "description": "Hestia — the homestead brain: chat, clips, recipes, status.",
+  "description": "Hestia, the homestead brain: chat, today, status, library.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

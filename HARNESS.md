@@ -124,6 +124,33 @@ open shopping items, today's calendar, the board queue (`/queue.json`) and maint
 due (`/maintenance/due`). Each section is read on its own; a backend that is down turns
 only its section into `{"error": ...}`.
 
+## The app
+
+`/app` is one page with four flat views picked by the URL hash: `#chat`, `#today`,
+`#status` and `#library`. The page is `clients/chat.html`; its styles and scripts are
+plain files beside it (`theme.css`, `app.css`, `core.js`, then one script per view),
+served by `GET /app/{name}` and cached network-first by the service worker. No build step.
+
+- **Chat** sends only the new message with its `thread_id` and `hestia_events: true`, shows
+  the brain's live tool status in the pending bubble, and renders `receipts` as chips under
+  the reply. On first load, a phone that still has localStorage history uploads it once as
+  its own threads. An empty conversation offers one-tap starters; "What's due today?"
+  opens Today instead of asking the model.
+- **Today** reads `GET /today` and never calls the model: reminders, calendar, the queue's
+  home and chore columns, maintenance due, the shopping list. Each section fails on its own.
+- **Status** is the `/status` snapshot plus maintenance and the memory inbox. The inbox is
+  shown read-only and points at `review_notes.py`; there are deliberately no Approve buttons.
+  It polls every 15 seconds only while visible and the app is in the foreground.
+- **Library** is the one clips renderer (`/clips` redirects here) and the way into recipes.
+
+The menu also links the no-model capture pages. `/queue` opens read-only; `/whelp` and the
+queue's Done buttons need the NFC token. The camera button posts to `/ingest/photo` with the
+ingest token. The app asks for each token once, keeps it in that phone's localStorage, and
+forgets it when the brain answers 401. Nothing about who may write changes.
+
+The theme follows the phone's light or dark setting. Replies and tool progress are announced
+through one polite live region, every control has a text label, and keyboard focus is visible.
+
 ## Background learning
 
 The note-taker always writes proposals to the inbox. The former
@@ -289,7 +316,7 @@ unknown delivery, fresh state and untrusted narration; no mutations were dispatc
 
 ## Recipe import and approval
 
-The chat client's Recipes button opens `/recipes`. Paste recipe text, upload a PDF,
+The app's Library view links to `/recipes`, which shares the app's theme and top bar. Paste recipe text, upload a PDF,
 or import a public URL. Structured Recipe JSON-LD is extracted directly, preserving
 its ingredient and instruction strings without model rewriting. Multiple recipes
 remain separate candidates. Blog prose is left for manual selection; linked PDFs
