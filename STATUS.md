@@ -1794,3 +1794,33 @@ try a spoken request. Operator actions are recorded in the central queue.
 
 Operator confirmed the router DHCP reservation is now saved. The remaining
 `[non-production]` action is a spoken request at 12:00 to confirm end-to-end voice.
+
+## 2026-10-14: The app becomes four views on brain-side threads
+
+Worked through what remained of the app review after the cloud session's bug fixes
+(`b80075d`, `2885b3d`). Deployed by the operator at `6b6a1ed`; brain health ok, the new
+assets serve, and the phone's old localStorage history uploaded to the brain on first open.
+
+- Chat history now lives on the brain (`threads_store.py`, tables in `hestia.db`, so the
+  nightly backup already covers it). The app sends only the new message; the brain trims
+  history to its own budget. The 20-message client cap and its 413 dead end are gone.
+- Opt-in live events: the pending bubble shows what the brain is doing, and action receipts
+  render as done, failed or unconfirmed chips under the reply. Phrases come from a fixed
+  table (`tool_phrases.py`), never the model.
+- `/today`: a model-free read of reminders, calendar, queue, maintenance and shopping,
+  each section failing on its own. The app's Today view is that page.
+- `chat.html` split into a shell, `theme.css`, `app.css` and one script per view, served at
+  `/app/{name}`. Chat, Today, Status and Library are `#hash` views. `clips.html` is gone and
+  `/clips` redirects to Library. `/recipes` wears the shared theme and top bar.
+- Light theme following the phone, a polite live region for replies and progress, visible
+  keyboard focus, labelled controls, quick-start chips, Status poll paused in the background.
+- Menu links `/queue` and `/whelp`; the camera files photos through `/ingest/photo`. Each
+  token is asked for once per phone and forgotten on a 401. The memory inbox stays read-only.
+
+Verified with the full test suite and a headless Chrome pass at phone width in both themes
+against a scratch brain. Not exercised end to end: receipts from a real write (rendered with
+synthetic data only; the brain side is covered by tests).
+
+Next action: `[non-production]` On the phone, file one real photo with the camera button
+(enter the ingest token when asked) and open the litter board from the menu (NFC token).
+That is the first real check of both token prompts.
