@@ -94,6 +94,16 @@
     border-radius:4px; padding:1px 5px; margin-left:6px; }
   .ccard video, .ccard audio { width:100%; display:block; background:#000; }
   #clipEmpty { text-align:center; color:var(--muted); padding:40px 16px; }
+  header { position:relative; }
+  #menuBtn { background:none; border:1px solid var(--line); color:var(--text);
+    border-radius:8px; padding:6px 10px; font-size:15px; }
+  #menu { display:none; position:absolute; top:calc(100% + 6px); left:8px; z-index:60;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    min-width:190px; padding:6px; box-shadow:0 8px 24px rgba(0,0,0,.5); }
+  #menu.open { display:block; }
+  #menu button { display:block; width:100%; text-align:left; background:none; border:none;
+    color:var(--text); font-size:15px; padding:10px 12px; border-radius:8px; }
+  #menu button:active { background:var(--line); }
   .s-headline { font-weight: 600; font-size: 15px; }
   .s-headline.ok { color: #3ecf8e; } .s-headline.bad { color: #f0556a; }
   .s-section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 9px; }
@@ -121,11 +131,16 @@
 </head>
 <body>
   <header>
+    <button id="menuBtn" aria-label="Menu">☰</button>
+    <div id="menu">
+      <button data-go="chat">💬 Chat</button>
+      <button data-go="status">📊 Status</button>
+      <button data-go="clips">🎬 Clips</button>
+      <button data-go="recipes">🍳 Recipes</button>
+    </div>
     <span class="dot" id="dot"></span>
     <h1><span>H</span>estia</h1>
     <span class="spacer"></span>
-    <button onclick="location.href='/recipes'">Recipes</button>
-    <button id="statusBtn">Status</button>
     <button id="clear">New chat</button>
   </header>
   <div id="log"></div>
@@ -501,7 +516,21 @@ tabStatusBtn.addEventListener("click", () => setTab(false));
 tabClipsBtn.addEventListener("click", () => setTab(true));
 if (location.hash === "#clips") { openStatus(); setTab(true); }
 
-document.getElementById("statusBtn").addEventListener("click", openStatus);
+// --- Hamburger menu: one place for every page. ---
+const menuBtn = document.getElementById("menuBtn");
+const menu = document.getElementById("menu");
+function closeMenu() { menu.classList.remove("open"); }
+menuBtn.addEventListener("click", (e) => { e.stopPropagation(); menu.classList.toggle("open"); });
+document.addEventListener("click", (e) => { if (!menu.contains(e.target)) closeMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeMenu(); closeStatus(); } });
+menu.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+  const go = b.dataset.go;
+  closeMenu();
+  if (go === "recipes") { location.href = "/recipes"; return; }
+  if (go === "chat") { closeStatus(); history.replaceState(null, "", location.pathname); return; }
+  openStatus(); setTab(go === "clips");
+}));
+
 document.getElementById("statusClose").addEventListener("click", closeStatus);
 document.getElementById("statusRefresh").addEventListener("click", () => { (typeof clipsTab !== "undefined" && clipsTab) ? loadClips() : refreshStatus(); });
 // Deep link: /app#status opens straight to the dashboard (handy as a separate phone shortcut).
