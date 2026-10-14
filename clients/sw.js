@@ -1,5 +1,5 @@
 // Hestia app shell service worker v1 — cache-first for the shell, network for API.
-const CACHE = 'hestia-shell-v1';
+const CACHE = 'hestia-shell-v2';
 const SHELL = ['/app', '/clips', '/manifest.json', '/icon.png', '/icon-192.png', '/icon-512.png', '/sw.js'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

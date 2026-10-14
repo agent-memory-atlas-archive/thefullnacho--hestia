@@ -71,6 +71,29 @@
   .status-head .spacer { flex: 1; }
   .status-head button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
   .status-body { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px; display: flex; flex-direction: column; gap: 18px; }
+  /* --- Clips tab inside the status overlay --- */
+  .status-tabs { display:flex; gap:6px; }
+  .status-tabs button { background:none; border:1px solid var(--line); color:var(--muted);
+    border-radius:8px; padding:6px 10px; font-size:13px; }
+  .status-tabs button.on { color:var(--text); border-color:var(--accent); }
+  #clipsPane { display:none; flex:1; min-height:0; overflow-y:auto; padding:0 16px 24px; }
+  #clipsPane.open { display:block; }
+  #clipChips { display:flex; gap:8px; overflow-x:auto; padding:12px 0; }
+  .cchip { flex:0 0 auto; border:1px solid var(--line); background:var(--panel); color:var(--muted);
+    border-radius:999px; padding:6px 12px; font-size:13px; }
+  .cchip.on { color:var(--text); border-color:var(--accent); }
+  .cchip.warn.on { border-color:#f0556a; color:#f0556a; }
+  #clipGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .ccard { background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .cthumb { width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:#000; }
+  .cbody { padding:8px 10px 10px; }
+  .cnote { font-size:13px; margin:0 0 4px; }
+  .cnote.empty { color:var(--muted); font-style:italic; }
+  .cmeta { font-size:11px; color:var(--muted); }
+  .cbadge { display:inline-block; font-size:10px; color:#f0556a; border:1px solid #f0556a;
+    border-radius:4px; padding:1px 5px; margin-left:6px; }
+  .ccard video, .ccard audio { width:100%; display:block; background:#000; }
+  #clipEmpty { text-align:center; color:var(--muted); padding:40px 16px; }
   .s-headline { font-weight: 600; font-size: 15px; }
   .s-headline.ok { color: #3ecf8e; } .s-headline.bad { color: #f0556a; }
   .s-section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 9px; }
@@ -116,13 +139,21 @@
        `status` brain tool speaks). Opened from the header; auto-refreshes while open. -->
   <div id="status">
     <div class="status-head">
-      <h1>Status</h1>
+      <div class="status-tabs">
+        <button id="tabStatus" class="on">Status</button>
+        <button id="tabClips">Clips</button>
+      </div>
       <span class="spacer"></span>
       <button id="statusRefresh">Refresh</button>
       <button id="statusClose">Done</button>
     </div>
     <div class="status-body" id="statusBody">
       <div class="empty">Loading…</div>
+    </div>
+    <div id="clipsPane">
+      <div id="clipChips"></div>
+      <div id="clipGrid"></div>
+      <div id="clipEmpty" hidden>No clips yet — save one from the Share Sheet shortcut.</div>
     </div>
   </div>
 
@@ -380,16 +411,99 @@ async function refreshStatus() {
 }
 function openStatus() {
   statusEl.classList.add("open");
-  refreshStatus();
-  statusTimer = setInterval(refreshStatus, 15000);
+  if (typeof clipsTab !== "undefined" && clipsTab) loadClips();
+  else { refreshStatus(); startStatusPoll(); }
 }
 function closeStatus() {
   statusEl.classList.remove("open");
   if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
 }
+
+// --- Clips tab inside the status overlay: the /api/clips feed, same data as /clips. ---
+const tabStatusBtn = document.getElementById("tabStatus");
+const tabClipsBtn = document.getElementById("tabClips");
+const clipsPane = document.getElementById("clipsPane");
+const clipChipsEl = document.getElementById("clipChips");
+const clipGridEl = document.getElementById("clipGrid");
+const clipEmptyEl = document.getElementById("clipEmpty");
+let clipItems = [], clipTag = "", clipNeedsOnly = false, clipsTab = false;
+
+function fmtClipDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+function stopStatusPoll() { if (statusTimer) { clearInterval(statusTimer); statusTimer = null; } }
+function startStatusPoll() { stopStatusPoll(); statusTimer = setInterval(refreshStatus, 15000); }
+function setTab(clips) {
+  clipsTab = clips;
+  tabStatusBtn.classList.toggle("on", !clips);
+  tabClipsBtn.classList.toggle("on", clips);
+  statusBody.style.display = clips ? "none" : "";
+  clipsPane.classList.toggle("open", clips);
+  if (clips) { stopStatusPoll(); loadClips(); }
+  else { refreshStatus(); startStatusPoll(); }
+}
+async function loadClips() {
+  const p = new URLSearchParams();
+  if (clipTag) p.set("tag", clipTag);
+  if (clipNeedsOnly) p.set("needs_note", "1");
+  try {
+    const r = await fetch("/api/clips" + (p.toString() ? "?" + p : ""));
+    if (!r.ok) throw new Error("clips " + r.status);
+    clipItems = (await r.json()).clips || [];
+    renderClipChips(); renderClips();
+  } catch (e) {
+    clipGridEl.innerHTML = ""; clipChipsEl.innerHTML = "";
+    clipEmptyEl.hidden = false;
+    clipEmptyEl.textContent = "Couldn\u2019t load clips \u2014 " + e.message + ". Is the brain up and are you on the tailnet?";
+  }
+}
+function renderClipChips() {
+  const tags = [...new Set(clipItems.flatMap(c => (c.tags || "").split(",").map(t => t.trim()).filter(Boolean)))].sort();
+  let h = '<button class="cchip' + (!clipTag && !clipNeedsOnly ? " on" : "") + '" data-t="">All</button>';
+  h += '<button class="cchip warn' + (clipNeedsOnly ? " on" : "") + '" data-needs="1">needs note</button>';
+  h += tags.map(t => '<button class="cchip' + (clipTag === t ? " on" : "") + '" data-t="' + esc(t) + '">' + esc(t) + "</button>").join("");
+  clipChipsEl.innerHTML = h;
+  clipChipsEl.querySelectorAll(".cchip").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.needs) { clipNeedsOnly = !clipNeedsOnly; clipTag = ""; }
+    else { clipTag = (clipTag === b.dataset.t) ? "" : b.dataset.t; clipNeedsOnly = false; }
+    loadClips();
+  }));
+}
+function renderClips() {
+  clipEmptyEl.hidden = clipItems.length > 0;
+  clipGridEl.innerHTML = clipItems.map(c => {
+    const media = c.thumb_url
+      ? '<img class="cthumb" src="' + c.thumb_url + '" loading="lazy" alt="">'
+      : '<div class="cthumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:28px;">' + (c.is_audio ? "&#9836;" : "&#127916;") + "</div>";
+    const note = c.note ? '<p class="cnote">' + esc(c.note) + "</p>" : '<p class="cnote empty">no note yet</p>';
+    const badge = c.needs_note ? '<span class="cbadge">needs note</span>' : "";
+    const when = fmtClipDate(c.taken_at || c.created_at);
+    return '<div class="ccard" data-id="' + c.id + '">' + media + '<div class="cbody">' + note +
+      '<div class="cmeta">' + esc(c.sender || "") + " \u00b7 " + when + badge + "</div></div></div>";
+  }).join("");
+  clipGridEl.querySelectorAll(".ccard").forEach(card => card.addEventListener("click", () => toggleClipPlay(card)));
+}
+function toggleClipPlay(card) {
+  const c = clipItems.find(x => String(x.id) === card.dataset.id);
+  if (!c || !c.file_url) return;
+  const old = card.querySelector("video, audio");
+  const th = card.querySelector(".cthumb");
+  if (old) { old.remove(); if (th) th.style.display = ""; return; }
+  const el = document.createElement(c.is_audio ? "audio" : "video");
+  el.src = c.file_url; el.controls = true; el.playsInline = true;
+  card.prepend(el);
+  if (th) th.style.display = "none";
+  el.play().catch(() => {});
+}
+tabStatusBtn.addEventListener("click", () => setTab(false));
+tabClipsBtn.addEventListener("click", () => setTab(true));
+if (location.hash === "#clips") { openStatus(); setTab(true); }
+
 document.getElementById("statusBtn").addEventListener("click", openStatus);
 document.getElementById("statusClose").addEventListener("click", closeStatus);
-document.getElementById("statusRefresh").addEventListener("click", refreshStatus);
+document.getElementById("statusRefresh").addEventListener("click", () => { (typeof clipsTab !== "undefined" && clipsTab) ? loadClips() : refreshStatus(); });
 // Deep link: /app#status opens straight to the dashboard (handy as a separate phone shortcut).
 if (location.hash === "#status") openStatus();
 </script>
