@@ -104,6 +104,19 @@
   #menu button { display:block; width:100%; text-align:left; background:none; border:none;
     color:var(--text); font-size:15px; padding:10px 12px; border-radius:8px; }
   #menu button:active { background:var(--line); }
+  /* --- Ambient ember: a slow-breathing warm glow behind the app --- */
+  body::before, #status::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(560px 420px at 18% 108%, rgba(217,138,75,.08), transparent 62%),
+      radial-gradient(480px 360px at 88% -8%, rgba(217,138,75,.06), transparent 60%),
+      radial-gradient(720px 520px at 50% 46%, rgba(217,138,75,.025), transparent 65%);
+    animation:ember 9s ease-in-out infinite;
+  }
+  @keyframes ember { 0%,100% { opacity:.65; } 50% { opacity:1; } }
+  @media (prefers-reduced-motion: reduce) { body::before, #status::before { animation:none; } }
+  header, #log, footer { position:relative; z-index:1; }
+  .status-head, .status-body, #clipsPane { position:relative; z-index:1; }
   .s-headline { font-weight: 600; font-size: 15px; }
   .s-headline.ok { color: #3ecf8e; } .s-headline.bad { color: #f0556a; }
   .s-section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 9px; }
