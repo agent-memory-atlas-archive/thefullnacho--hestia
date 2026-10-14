@@ -22,7 +22,7 @@ import uuid
 
 import config
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 router = APIRouter()
 
@@ -261,11 +261,9 @@ async def clips_thumb(clip_id: int):
 
 @router.get("/clips")
 async def clips_page():
-    """Serve clients/clips.html per-request (same pattern as /app): no restart for HTML edits."""
-    try:
-        return HTMLResponse((config.CLIENTS_DIR / "clips.html").read_text())
-    except FileNotFoundError:
-        return JSONResponse(status_code=404, content={"error": "clips client not installed"})
+    """Clips are a view inside the app now (one renderer for one feed). Old bookmarks and the
+    Share Sheet shortcut's link land on it."""
+    return RedirectResponse("/app#library", status_code=307)
 
 
 @router.get("/manifest.json")

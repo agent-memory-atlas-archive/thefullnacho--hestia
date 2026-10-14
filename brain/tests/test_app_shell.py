@@ -46,3 +46,20 @@ def test_every_manifest_icon_is_served(client):
 def test_sized_icons_are_distinct_files(client):
     assert client.get("/icon-192.png").content == (config.CLIENTS_DIR / "icon-192.png").read_bytes()
     assert client.get("/icon-512.png").content == (config.CLIENTS_DIR / "icon-512.png").read_bytes()
+
+
+def test_app_assets_serve_only_flat_css_and_js(client, tmp_path, monkeypatch):
+    (tmp_path / "chat.css").write_text("body{}")
+    (tmp_path / "chat.js").write_text("1")
+    (tmp_path / "secret.txt").write_text("no")
+    monkeypatch.setattr(config, "CLIENTS_DIR", tmp_path)
+    css, js = client.get("/app/chat.css"), client.get("/app/chat.js")
+    assert css.status_code == 200 and css.headers["content-type"].startswith("text/css")
+    assert js.status_code == 200 and js.headers["content-type"].startswith("application/javascript")
+    for bad in ("/app/secret.txt", "/app/Chat.css", "/app/..%2Fsw.js", "/app/missing.js"):
+        assert client.get(bad).status_code == 404, bad
+
+
+def test_clips_page_redirects_into_the_app(client):
+    r = client.get("/clips", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/app#library"

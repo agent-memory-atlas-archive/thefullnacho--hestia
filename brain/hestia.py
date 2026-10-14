@@ -883,6 +883,20 @@ async def chat_client():
         return JSONResponse(status_code=404, content={"error": "chat client not installed"})
 
 
+_ASSET_TYPES = {"css": "text/css", "js": "application/javascript"}
+
+
+@app.get("/app/{name}")
+async def chat_asset(name: str):
+    """The chat app's stylesheets and scripts, straight from clients/. Only flat names like
+    chat.css or today.js qualify, so no path can climb out of the directory."""
+    m = re.fullmatch(r"[a-z0-9-]+\.(css|js)", name)
+    p = config.CLIENTS_DIR / name
+    if not m or not p.is_file():
+        return JSONResponse(status_code=404, content={"error": "no such app asset"})
+    return FileResponse(p, media_type=_ASSET_TYPES[m.group(1)], headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/icon.png")
 @app.get("/icon-192.png")
 @app.get("/icon-512.png")
