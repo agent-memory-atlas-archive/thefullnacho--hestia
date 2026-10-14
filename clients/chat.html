@@ -115,7 +115,8 @@
   }
   @keyframes ember { 0%,100% { opacity:.65; } 50% { opacity:1; } }
   @media (prefers-reduced-motion: reduce) { body::before, #status::before { animation:none; } }
-  header, #log, footer { position:relative; z-index:1; }
+  #log, footer { position:relative; z-index:1; }
+  header { position:relative; z-index:10; }  /* above #log so the menu dropdown paints over it, below the #status overlay (20) */
   .status-head, .status-body, #clipsPane { position:relative; z-index:1; }
   .s-headline { font-weight: 600; font-size: 15px; }
   .s-headline.ok { color: #3ecf8e; } .s-headline.bad { color: #f0556a; }
