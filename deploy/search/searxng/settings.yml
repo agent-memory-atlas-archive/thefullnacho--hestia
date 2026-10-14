@@ -17,3 +17,12 @@ search:
 engines:
   - name: wikipedia
     disabled: false
+  # The image's default general engines (Google, DuckDuckGo, Startpage, Brave) answer a house's
+  # one IP with CAPTCHAs and rate limits, so general search came back empty (2026-10-14). These
+  # three tolerate self-hosted traffic better; they are off in the image's defaults.
+  - name: bing
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: yahoo
+    disabled: false
