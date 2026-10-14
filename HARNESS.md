@@ -141,7 +141,8 @@ served by `GET /app/{name}` and cached network-first by the service worker. No b
 - **Status** is the `/status` snapshot plus maintenance and the memory inbox. The inbox is
   shown read-only and points at `review_notes.py`; there are deliberately no Approve buttons.
   It polls every 15 seconds only while visible and the app is in the foreground.
-- **Library** is the one clips renderer (`/clips` redirects here) and the way into recipes.
+- **Library** is the one clips renderer (`/clips` redirects here), the way into recipes,
+  and the day's picks (below).
 
 The menu also links the no-model capture pages. `/queue` opens read-only; `/whelp` and the
 queue's Done buttons need the NFC token. The camera button posts to `/ingest/photo` with the
@@ -150,6 +151,26 @@ forgets it when the brain answers 401. Nothing about who may write changes.
 
 The theme follows the phone's light or dark setting. Replies and tool progress are announced
 through one polite live region, every control has a text label, and keyboard focus is visible.
+
+## The feed
+
+A few reading picks a day per person, at the top of Library. Links come from code; the model
+only ranks. `brain/feed.py` runs at 03:00 (`hestia-feed.timer`): for each person in
+`data/feed/people.toml` it runs their fixed queries through SearXNG for the past week, fetches
+up to 28 unseen results under the same public-hosts-only rule as `search` (redirects followed
+by hand, each hop checked), and keeps each page's title, summary and opening text. The model
+then gets the person's rubric (`data/feed/<id>.md`), their recent hearts and "not for me"
+taps, and the numbered candidates, and answers with numbers and a one-line why. Numbers off
+the list are dropped, at most two picks come from one site and eight in all, and a link is
+shown to a person once, ever. The picks' lead images are cached under `data/feed/img/`, kept
+14 days unless hearted, so the phone loads nothing from a third-party host.
+
+If the model is down or picks nothing, tonight's set is not written and yesterday's stays up.
+The app reads `GET /v1/feed?person=<id>`, sends `POST /v1/feed/{id}/react` with `heart`,
+`nope` or `null`, and asks "who's using this phone?" once per device, from
+`GET /v1/feed/people`. That choice is a preference, not identity. `python feed.py --dry-run`
+prints a night's picks without storing them. The config is gitignored; the templates are
+`deploy/feed/people.toml.example` and `deploy/feed/rubric.md.example`.
 
 ## Background learning
 

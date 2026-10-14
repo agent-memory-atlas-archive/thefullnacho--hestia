@@ -1,0 +1,9 @@
+# What makes a good pick for Sam
+
+Copy to data/feed/<id>.md and write it in plain sentences. The ranker reads it every night,
+alongside what this person hearted and marked "not for me" lately.
+
+- Practical over inspirational: something to try, build or deploy soon.
+- Primary sources over rewrites: the project's own release notes beat coverage of them.
+- Real people with hands-on experience over listicles and SEO farms.
+- Skip: hype, funding gossip, anything paywalled.

@@ -33,6 +33,16 @@ follows redirects. Without this, a prompt-injected web page could tell the model
 unauthenticated internal endpoints (Ollama, the brain's own inbox, media admin panels) and repeat
 the contents back.
 
+**The feed fetcher is a scheduled reader of public pages, not a new door.** Once a night,
+`feed.py` runs a fixed list of interest queries through the house's own SearXNG, fetches the top
+results with the same public-hosts-only rule as `search` (redirects are followed only hop by
+hop, and every hop is held to that rule), and caches each article's text and lead image on the
+brain. The queries come from a config file the operator controls. The model never adds a query
+or a URL. It ranks only what was already fetched, and it can't trigger a fetch. Requests carry
+no identifiers, cookies or accounts, and the phone loads images only from the brain, never from
+third-party hosts. What leaves the house: the queries, through SearXNG to its upstream engines,
+and plain page GETs to whatever sites the results point at.
+
 **The operator's MCP server is a window onto the same tools, not a new door.** `brain/mcp_server.py`
 offers the brain's tool registry to the operator's own Claude Code over stdio, so work done in that
 chat goes through the same validation and side effects as a request to the brain. It opens no

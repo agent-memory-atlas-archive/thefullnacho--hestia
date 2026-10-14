@@ -55,6 +55,8 @@ import records_store  # noqa: E402
 import reminders_store  # noqa: E402
 import review_notes  # noqa: E402
 import threads_store  # noqa: E402
+import feed  # noqa: E402
+import feed_store  # noqa: E402
 import tool_phrases  # noqa: E402
 import tools  # noqa: E402
 import briefing_store  # noqa: E402
@@ -1337,6 +1339,48 @@ async def threads_clear(thread_id: str):
     if not await asyncio.to_thread(threads_store.clear, thread_id):
         return JSONResponse(status_code=404, content={"error": "Unknown thread."})
     return {"ok": True}
+
+
+@app.get("/v1/feed/people")
+async def feed_people():
+    """Who the feed is set up for, for the app's "who's using this phone" picker."""
+    people = await asyncio.to_thread(feed.load_people)
+    return {"people": [{"id": p["id"], "name": p["name"]} for p in people]}
+
+
+@app.get("/v1/feed")
+async def feed_today(person: str = ""):
+    """The newest night's picks for one person. Model-free: the nightly job did the work."""
+    if not feed._ID.fullmatch(person):
+        return JSONResponse(status_code=400, content={"error": "Say whose feed: ?person=<id>."})
+    day = await asyncio.to_thread(feed_store.latest, person)
+    for it in day["items"]:
+        it["image_url"] = f"/v1/feed/{it['id']}/image" if it.pop("image") else None
+    return day
+
+
+@app.post("/v1/feed/{item_id}/react")
+async def feed_react(item_id: int, request: Request):
+    body = await _json_body(request)
+    reaction = body["reaction"] if body and "reaction" in body else "missing"
+    if reaction is not None and reaction not in feed_store.REACTIONS:
+        return JSONResponse(status_code=400, content={"error": 'Send {"reaction": "heart" | "nope" | null}.'})
+    item = await asyncio.to_thread(feed_store.react, item_id, reaction)
+    if not item:
+        return JSONResponse(status_code=404, content={"error": "Unknown feed item."})
+    return {"id": item["id"], "reaction": item["reaction"]}
+
+
+@app.get("/v1/feed/{item_id}/image")
+async def feed_image(item_id: int):
+    """A pick's cached lead image. The file name comes from the row, never the request."""
+    item = await asyncio.to_thread(feed_store.get, item_id)
+    path = config.FEED_DIR / "img" / item["image"] if item and item["image"] else None
+    if not path or not path.is_file():
+        return JSONResponse(status_code=404, content={"error": "No image for that item."})
+    ext = path.suffix.lstrip(".")
+    return FileResponse(path, media_type=f"image/{'jpeg' if ext == 'jpg' else ext}",
+                        headers={"Cache-Control": "max-age=604800"})
 
 
 def _file_photo(data: bytes, filename: str, subjects: list[str], domain: str,

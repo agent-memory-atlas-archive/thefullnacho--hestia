@@ -1,0 +1,24 @@
+# The nightly feed's people. Copy to data/feed/people.toml (gitignored: who lives in a house
+# and what they read is personal) and write one rubric per person at data/feed/<id>.md.
+#
+# id      lowercase letters, digits, - or _. Names the rubric file and the app's picker value.
+# name    what the app's "who's using this phone" picker shows.
+# queries fixed searches, run through your SearXNG each night, past week only. The model
+#         never adds to this list; edit it here.
+
+[[person]]
+id = "sam"
+name = "Sam"
+queries = [
+  "raised bed gardening tips this season",
+  "Home Assistant new integration",
+  "self-hosted open source new release",
+]
+
+[[person]]
+id = "rio"
+name = "Rio"
+queries = [
+  "beginner woodworking project",
+  "sourdough troubleshooting",
+]

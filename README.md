@@ -68,8 +68,10 @@ the long version; [MEMORY-DESIGN.md](MEMORY-DESIGN.md) covers the memory plan.)
 
 **What it isn't.** A cloud service, a wrapper around someone else's API, or anything you should put
 on the public internet. It runs rootless on your own box, and the only traffic that ever leaves it
-is the weather tool calling two keyless public forecast APIs (Open-Meteo and api.weather.gov). No
-account, no key, no telemetry, and nothing about your house goes with the request.
+is the weather tool calling two keyless public forecast APIs (Open-Meteo and api.weather.gov), web
+searches through your own SearXNG, and, if you set up the optional nightly feed, plain reads of
+the public pages those searches turn up. No account, no key, no telemetry, and nothing about your
+house goes with the request.
 
 > ⚠️ **Read [SECURITY.md](SECURITY.md) before running it.** The brain has no built-in
 > authentication and can control your devices, so it must stay on a private network (Tailscale or

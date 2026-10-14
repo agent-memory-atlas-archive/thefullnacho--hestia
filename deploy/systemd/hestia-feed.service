@@ -1,0 +1,9 @@
+[Unit]
+Description=Hestia — nightly feed (search the interests, fetch the pages, rank, cache images)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/hestia/brain
+ExecStart=%h/.local/bin/uv run --project %h/hestia/brain python %h/hestia/brain/feed.py

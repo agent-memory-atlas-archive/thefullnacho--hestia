@@ -63,6 +63,9 @@ POSITIONS_DATA = Path(os.environ.get("POSITIONS_DATA") or DATA_DIR / "irrigation
 # The household almanac pages (<year>.md + <year>.json), regenerated nightly by almanac.py
 # and injected into the prompt when the almanac skill matches a request.
 ALMANAC_DIR = DATA_DIR / "almanac"
+# The nightly feed: people.toml (who, their queries) and one rubric markdown per person, plus
+# img/, the cached lead image of each pick. Personal, so under DATA_DIR like the recipes.
+FEED_DIR = Path(os.environ.get("HESTIA_FEED_DIR") or DATA_DIR / "feed")
 
 # Guarantee sibling modules (memory_store, records_store, the tools package, ...) import
 # whether the brain is launched by uvicorn, a systemd script, or pytest — done once here
