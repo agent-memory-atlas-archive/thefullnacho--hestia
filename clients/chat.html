@@ -23,6 +23,7 @@
 <script defer src="/app/chat.js"></script>
 <script defer src="/app/today.js"></script>
 <script defer src="/app/status.js"></script>
+<script defer src="/app/feed.js"></script>
 <script defer src="/app/library.js"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}</script>
 </head>
@@ -126,6 +127,12 @@
         <div class="view-head"><h1 tabindex="-1">Library</h1></div>
         <div class="lib-links">
           <a class="lib-link" href="/recipes"><span data-icon="recipes"></span><span>Recipes<small>Import, review and approve</small></span></a>
+        </div>
+        <div class="card" id="feedCard" hidden>
+          <h2>Picks</h2>
+          <div id="feedPicker" class="chips" role="radiogroup" aria-label="Who's using this phone"></div>
+          <div id="feedList" class="pick-list"></div>
+          <p id="feedEmpty" class="t-none" hidden></p>
         </div>
         <div class="card">
           <h2>Clips</h2>

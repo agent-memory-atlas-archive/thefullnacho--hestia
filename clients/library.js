@@ -1,5 +1,5 @@
 // Library view: the one clips renderer (/clips now redirects here) plus the way into recipes.
-// Same /api/clips feed as before.
+// Same /api/clips feed as before. The picks card above it is feed.js.
 'use strict';
 
 (() => {
@@ -85,5 +85,5 @@
     el.play().catch(() => {});
   }
 
-  Hestia.views.library = { title: 'Library', enter: load };
+  Hestia.views.library = { title: 'Library', enter: () => { Hestia.feed?.load(); load(); } };
 })();

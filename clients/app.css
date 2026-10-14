@@ -272,6 +272,28 @@ dialog input, dialog select {
 .t-none { color: var(--muted); font-size: 13.5px; }
 .t-err { color: var(--warn-text); font-size: 13px; }
 
+/* --- Library: picks --- */
+.chip.radio { display: inline-flex; align-items: center; }
+.chip.radio input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chip.radio:has(input:checked) { color: var(--text-bright); border-color: var(--accent); background: var(--accent-glow); }
+.chip.radio:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pick-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.pick {
+  background: var(--raised); border: 1px solid var(--line-subtle); border-radius: 12px;
+  overflow: hidden; box-shadow: var(--shadow);
+}
+.pick-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; background: var(--sunk); }
+.pick-body { padding: 12px 14px; }
+.pick-title { color: var(--text-bright); font-weight: 600; font-size: 15px; line-height: 1.35; text-decoration: none; overflow-wrap: anywhere; }
+.pick-title:hover { text-decoration: underline; }
+.pick-why { margin: 6px 0 10px; font-size: 13.5px; color: var(--text); }
+.pick-foot { display: flex; align-items: center; gap: 8px; }
+.pick-src { color: var(--muted); font-size: 12px; margin-right: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick .heart[aria-pressed="true"] { color: var(--bad); border-color: var(--bad); }
+.pick .heart[aria-pressed="true"] svg { fill: currentColor; }
+.pick.waved .pick-img, .pick.waved .pick-why { display: none; }
+.pick.waved .pick-title { color: var(--muted); font-weight: 400; }
+
 /* --- Library (clips) --- */
 .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
 .chip {
