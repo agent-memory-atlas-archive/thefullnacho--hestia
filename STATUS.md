@@ -1824,3 +1824,31 @@ synthetic data only; the brain side is covered by tests).
 Next action: `[non-production]` On the phone, file one real photo with the camera button
 (enter the ingest token when asked) and open the litter board from the menu (NFC token).
 That is the first real check of both token prompts.
+
+## 2026-10-14: The feed, a few picks a night found by code and ranked by the model
+
+v1 of the agent feed is on `feat/feed`. RSS was dropped (the household's blogs stay out of
+Hestia by request), so every link comes from fixed interest queries.
+
+- `feed.py` at 03:00: per person, queries through SearXNG (news from the past week, topped up
+  from general results of the past month, 8 seconds between calls), up to 28 unseen pages
+  fetched public-only, then one ranking call. The model answers with candidate numbers and a
+  one-line why; off-list numbers are dropped, two picks per site at most, eight in all, and a
+  link is shown once ever. Lead images are cached on the brain. Model down keeps yesterday's set.
+- Library has a Picks card: "who's using this phone" picker (per device), heart and
+  "not for me". Reactions go into the next night's ranking prompt.
+- The egress is a recorded decision: SECURITY.md "The feed fetcher" and invariant 5.
+- Config is gitignored under `data/feed/` (people, queries, one rubric per person); templates
+  in `deploy/feed/`.
+- Found on the way: SearXNG's default general engines were answering with CAPTCHAs and rate
+  limits, so general search (and the brain's `search` tool) returned nothing. Bing, Mojeek and
+  Yahoo are turned on in `deploy/search/searxng/settings.yml`; not yet applied on hl-relay.
+
+Verified: full test suite, headless Chrome at phone width in both themes against a scratch
+brain (picker, hearts, not-for-me, reload persistence, keyboard), and two real dry runs
+(4 and 3 picks from 14-16 candidates, on the news engines alone).
+
+Next action: deploy the branch and the SearXNG change, run the first night by hand, then
+`[non-production]` on each phone open Library, pick the right name, and tap hearts and
+"not for me" for a week so the ranking has something to learn from. v2 is weekly rubric
+proposals into the inbox.
