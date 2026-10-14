@@ -1002,6 +1002,65 @@ def queue_json():
     return JSONResponse(board.snapshot(), headers={"Cache-Control": "no-store"})
 
 
+def _today_reminders(now: _dt.datetime) -> dict:
+    end = _dt.datetime.combine(now.date() + _dt.timedelta(days=1), _dt.time()).isoformat(timespec="seconds")
+    stamp = now.isoformat(timespec="seconds")
+    rows = [r for r in reminders_store.pending(200) if r["due_at"] < end]
+    return {"items": [{"id": r["id"], "due_at": r["due_at"], "text": r["text"],
+                       "overdue": r["due_at"] <= stamp} for r in rows]}
+
+
+def _today_shopping() -> dict:
+    items = tools.shopping._items()
+    return {"items": [i["summary"] for i in items if i.get("status") != "completed"]}
+
+
+def _today_calendar(now: _dt.datetime) -> dict:
+    start = _dt.datetime.combine(now.date(), _dt.time())
+    events = tools.calendar.events(start, start + _dt.timedelta(days=1))
+    return {"events": [{"summary": e["summary"], "start": e["start"].isoformat(timespec="minutes"),
+                        "end": e["end"].isoformat(timespec="minutes"), "all_day": e["all_day"],
+                        "location": e["location"], "calendar": e["calendar"]} for e in events]}
+
+
+def _today_maintenance() -> dict:
+    rows = records_store.due_assets()
+    return {"count": len(rows), "assets": rows}
+
+
+@app.get("/today")
+async def today():
+    """The app's Today view: what's due, read straight from the stores. No model, no writes.
+    Each section is fetched off the event loop on its own; a backend that is down turns its
+    section into {"error": "..."} and the rest still render.
+
+    {"date": "YYYY-MM-DD",
+     "reminders":   {"items": [{"id", "due_at", "text", "overdue"}]},   unfired, due by tonight
+     "shopping":    {"items": ["milk", ...]},                           open items only
+     "calendar":    {"events": [{"summary", "start", "end", "all_day", "location", "calendar"}]},
+     "queue":       board.snapshot(), the same object /queue.json serves,
+     "maintenance": {"count", "assets"}, the same object /maintenance/due serves}"""
+    now = _dt.datetime.now()
+    sections = {
+        "reminders": lambda: _today_reminders(now),
+        "shopping": _today_shopping,
+        "calendar": lambda: _today_calendar(now),
+        "queue": board.snapshot,
+        "maintenance": _today_maintenance,
+    }
+
+    async def run(name, fn):
+        try:
+            return name, await asyncio.to_thread(fn)
+        except Exception as e:  # noqa: BLE001 — one section down must not blank the page
+            _log(f"/today {name} failed: {type(e).__name__}")
+            return name, {"error": f"{name} unavailable ({type(e).__name__})"}
+
+    out = {"date": now.date().isoformat()}
+    out.update(dict(await asyncio.gather(*(run(n, f) for n, f in sections.items()))))
+    return JSONResponse(out, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/health")
 async def health():
     try:

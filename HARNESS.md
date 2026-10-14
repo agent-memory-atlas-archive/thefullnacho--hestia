@@ -119,6 +119,11 @@ not streaming, carries `receipts: [{tool, status, text}]` from the turn's action
 status succeeded, failed or unknown. Without the flag the wire format is unchanged, which
 keeps HA's Assist and other OpenAI clients unaffected.
 
+`GET /today` is the app's Today view and calls no model: reminders due by tonight,
+open shopping items, today's calendar, the board queue (`/queue.json`) and maintenance
+due (`/maintenance/due`). Each section is read on its own; a backend that is down turns
+only its section into `{"error": ...}`.
+
 ## Background learning
 
 The note-taker always writes proposals to the inbox. The former
