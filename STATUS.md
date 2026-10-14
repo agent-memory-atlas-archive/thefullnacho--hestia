@@ -1852,3 +1852,9 @@ Next action: deploy the branch and the SearXNG change, run the first night by ha
 `[non-production]` on each phone open Library, pick the right name, and tap hearts and
 "not for me" for a week so the ranking has something to learn from. v2 is weekly rubric
 proposals into the inbox.
+
+Deployed 2026-10-14 at `a1a712c`: timer set for 03:00, first night run by hand (Hippie 4
+picks from 17 candidates, Nacho 3 from 16), served at `/v1/feed`. SearXNG settings applied on
+hl-relay (needs `docker exec -u 977`: the container drops all capabilities, so its root can't
+write the file). Bing now answers general queries, so the brain's `search` tool works again;
+Mojeek answers "access denied" and Yahoo a protocol error, both harmless while enabled.
