@@ -1858,3 +1858,40 @@ picks from 17 candidates, Nacho 3 from 16), served at `/v1/feed`. SearXNG settin
 hl-relay (needs `docker exec -u 977`: the container drops all capabilities, so its root can't
 write the file). Bing now answers general queries, so the brain's `search` tool works again;
 Mojeek answers "access denied" and Yahoo a protocol error, both harmless while enabled.
+
+## 2026-10-15: Hestia Lite's small router measured, the utterance log, and fake confirmations blocked
+
+**Small router (branch `exp/small-router`, pushed, not merged).** EmbeddingGemma picks the
+domain, a fine-tuned FunctionGemma 270M makes the call with that domain's tools, and code gates
+between them. Numbers in `benchmarks/small-router/RESULTS.md`:
+- Router on the Pi 4: 94% right domain with example sentences (85% zero-shot from tool
+  descriptions; EmbeddingGemma's task prefixes are required). The top-two gap gate asks
+  "which of these two" instead of acting when unsure; chit-chat almost never acts.
+- Caller: stock 34%, fine-tuned about 79% fully right and 95% right tool, flat across five
+  seeds and across 1,876 vs 3,737 training sentences (spread about 4 points). Data volume is
+  not the bottleneck at 270M.
+- A said-words gate after the caller refuses values that aren't allowed or weren't said.
+- Constrained decoding probe: no fewer wrong calls, and it hid 5 errors the gate catches.
+  Gate ships, constraint doesn't.
+- Decided: Lite is standalone (no home-brain rescue); roomless light commands mean the
+  device's room (code fills it); the first week of real utterances is the test set, never
+  trained on. Home Assistant's intent sentences (CC BY 4.0, NOTICE.md) are in the training set.
+
+**Utterance log** deployed at 10:06 (`5ccaa7b`, flag `HESTIA_UTTERANCE_LOG=1` in the drop-in
+`80-utterance-log.conf`). Words only, tagged voice/app/other.
+
+**Fake confirmations** deployed at `71355cd`. A Facebook link got "imported into your recipe
+collection as a draft" and "Remind to start the seeds" got "Reminder #23 set" with no tool
+call behind either. Now a reply that claims an action with no tool run is replaced with "I
+didn't actually do that" (logged `UNDONE CLAIM`); a bare link gets the Recipes import steps
+from code.
+
+Next action (mine): the override-gate experiment as Alex designed it (logit gap among allowed
+tokens + override mass, ask if either fires, question built from the veto), after fixing the
+"all" leak in `constrain.py`; then the fine-tuned caller as a GGUF on the Pi end to end.
+`[non-production]` Route commands through Hestia all week (both of you, aloud where you can).
+`[non-production]` 2026-10-22: review the utterance dump, read each one aloud, flag any that
+don't sound like real speech; then turn the log off (delete the drop-in, daemon-reload,
+restart).
+`[non-production]` Living Room AC has been unreachable from Home Assistant since 2026-10-12:
+look whether it is unplugged for the season.
