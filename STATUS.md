@@ -1895,3 +1895,23 @@ don't sound like real speech; then turn the log off (delete the drop-in, daemon-
 restart).
 `[non-production]` Living Room AC has been unreachable from Home Assistant since 2026-10-12:
 look whether it is unplugged for the season.
+
+## 2026-10-15 (evening): The override gate, and three checker holes closed
+
+On `exp/small-router` (`3f6ec8f`..`d6e176c`), bench only, nothing deployed.
+
+- Checker fixes in `constrain.py`: "all" only for light_set's target; free text must be words
+  the person said in any order (the old rule demanded one unbroken phrase, so it vetoed right
+  answers like "thursday 2"); plain ascii only. The said-words gate had the same "all" and
+  ascii holes; fixed at Alex's ask, one shared rule in `caller.py`.
+- Constrained probe rerun: it fixes only copies the gate already caught and turns 4 caught
+  errors into silent wrong actions. Still not shipped.
+- Override gate (`override.py`, Alex's design): override mass plus the allowed-token gap, ask
+  if either fires, thresholds from val, questions built from the veto. Fresh checkpoint v4
+  (v3b's val overlapped its training). Test: model alone + gate 26 wrong actions at 8% asks;
+  both signals 16 wrong actions but 20% asks, most of them needless. Template val can't
+  calibrate for real speech. The simpler architecture (model + said-words gate) wins for now.
+
+Next action (mine): the fine-tuned caller as a GGUF on the Pi end to end. After the week of
+utterances (2026-10-22 review, already queued): split it into calibration and test halves,
+pick the override thresholds there, at K>=5.
