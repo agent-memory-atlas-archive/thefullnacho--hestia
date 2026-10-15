@@ -24,7 +24,13 @@ The loop also enforces its selected tool set. Shopping-list clear requires the e
 user confirmation `confirm clear the shopping list`; the model cannot supply that flag.
 Tool results carry succeeded/failed/unknown status. Writes return backend receipts,
 including partial or unknown outcomes, instead of trusting a model's success claim.
-This does not detect a requested action the model never attempted.
+When no tool ran at all, a reply that still claims an action ("Reminder #23 set", "imported
+into your recipe collection") is replaced with a plain "I didn't actually do that", logged as
+`UNDONE CLAIM`, and kept out of the thread so the next turn can't copy it. Advice, offers and
+questions ("you could set a reminder") pass. Requests the model never attempted and never
+claimed are still not detected. A message that is only a link (with at most a short label) is
+answered by code, without the model: chat can't read a page, so the reply points to Recipes,
+Import a recipe.
 
 Clients can send `Idempotency-Key` (8-128 letters, digits, underscores or hyphens).
 Reusing a key with identical messages replays the response; differing messages or a
