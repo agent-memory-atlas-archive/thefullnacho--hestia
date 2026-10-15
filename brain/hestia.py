@@ -55,6 +55,7 @@ import records_store  # noqa: E402
 import reminders_store  # noqa: E402
 import review_notes  # noqa: E402
 import threads_store  # noqa: E402
+import utterance_store  # noqa: E402
 import feed  # noqa: E402
 import feed_store  # noqa: E402
 import tool_phrases  # noqa: E402
@@ -1187,6 +1188,13 @@ async def chat_completions(request: Request):
             'error': 'Request is already running or has an unknown outcome.' if state == 'pending' else
                      'Idempotency-Key was already used for different messages.',
             'request_id': trace.request_id})
+    if state == 'new' and utterance_store.enabled():
+        # Real requests for testing the small on-device router; never allowed to cost the turn.
+        try:
+            await asyncio.to_thread(utterance_store.record, messages, utterance_store.source_of(
+                request.headers.get('user-agent', ''), thread_id is not None))
+        except Exception as e:
+            _log(f'utterance log write failed: {type(e).__name__}')
 
     async def execute():
         if saved:

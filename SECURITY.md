@@ -78,6 +78,11 @@ goes, which is an operator-side choice; the brain itself still calls nothing out
   rewriting a public history would break every clone to hide something the trust model above
   already does not rely on. The network boundary is the protection, not the secrecy of an
   address. Accepted 2026-09-27.
+- **The utterance log** (`brain/utterance_store.py`) records what people say to Hestia, word
+  for word, with the window it came from. It is **off unless `HESTIA_UTTERANCE_LOG=1`** and
+  exists to collect real requests for testing the small on-device router. It keeps no replies
+  and no tool results, lives in `hestia.db` with the rest, and so shares its perms and backups.
+  Anyone who talks to the house is in it while it is on; switch it off when the collection ends.
 - **The board's Kindle** (`deploy/kindle/`) runs an SSH server on the LAN with key-only root
   login. It holds no secrets and only receives images, but it is a root shell on a 2009 kernel,
   so it gets a DHCP reservation, one dedicated key, and nothing else from this repo.
