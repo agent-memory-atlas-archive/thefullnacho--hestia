@@ -1,7 +1,10 @@
 """Bound model input without silently clipping instructions or the latest request.
 
-UTF-8 bytes are used as a deliberately conservative token upper estimate. This is
-not the model tokenizer; backend token counts remain the measurement authority.
+Tokens are estimated as UTF-8 bytes / 3. Live turns run about 4.3 bytes per token (a
+31 KB prompt is ~7,300 tokens), so this keeps a ~30% margin. Counting bytes as tokens
+was 4x too strict: a garden follow-up with two skills loaded hit "exceed the context
+budget" at under a quarter of the window (2026-10-16). This is not the model tokenizer;
+backend token counts remain the measurement authority.
 """
 from __future__ import annotations
 
@@ -10,6 +13,14 @@ import json
 
 def estimate(value):
     return len(json.dumps(value, ensure_ascii=False).encode('utf-8'))
+
+
+BYTES_PER_TOKEN = 3
+
+
+def tokens(value):
+    """Conservative token estimate for model input."""
+    return -(-estimate(value) // BYTES_PER_TOKEN)
 
 
 def evidence(label, text, limit=5000):
@@ -25,7 +36,7 @@ def fit(messages, schemas, num_ctx, output_reserve):
     """Drop old *whole* exchanges; never create orphaned tool replies."""
     messages = list(messages)
     budget = num_ctx - output_reserve - 512
-    while estimate(messages) + estimate(schemas) > budget:
+    while tokens(messages) + tokens(schemas) > budget:
         user_indices = [i for i, m in enumerate(messages) if m.get('role') == 'user']
         if len(user_indices) < 2:
             raise ValueError('This request and its required context exceed the context budget. Please shorten it.')

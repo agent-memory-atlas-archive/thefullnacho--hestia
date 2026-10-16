@@ -58,11 +58,13 @@ with available readings can disable tools; observations retain records access.
 
 Evidence blocks carry source and truncation metadata and are explicitly data-only.
 Stable instructions precede changing evidence. History is trimmed at whole user
-exchange boundaries, keeping assistant/tool groups together. The conservative UTF-8
-byte estimate reserves `HESTIA_OUTPUT_TOKENS` (default 768) plus protocol headroom.
-If the current exchange and required context cannot fit, the harness asks for a
-shorter request instead of silently dropping instructions. This estimate intentionally
-overestimates typical English token counts; backend counts remain authoritative.
+exchange boundaries, keeping assistant/tool groups together. Tokens are estimated as
+UTF-8 bytes / 3 (live turns run about 4.3 bytes per token), reserving
+`HESTIA_OUTPUT_TOKENS` (default 768) plus protocol headroom. If the current exchange and
+required context cannot fit, the harness asks for a shorter request instead of silently
+dropping instructions. Until 2026-10-16 bytes were counted as tokens, 4x too strict: a
+system prompt with two skills loaded left room for almost no history, and a garden
+follow-up was refused at under a quarter of the window. Backend counts remain authoritative.
 Tool results are bounded by `HESTIA_TOOL_RESULT_BYTES` (default 6000).
 
 The API accepts only bounded text user/assistant/system messages; client-supplied

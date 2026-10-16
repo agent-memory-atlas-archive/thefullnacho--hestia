@@ -61,8 +61,17 @@ def test_history_pruning_preserves_current_tool_group():
                 {'role': 'user', 'content': 'current'},
                 {'role': 'assistant', 'tool_calls': [{'function': {'name': 'home'}}]},
                 {'role': 'tool', 'content': 'result'}]
-    fitted = context_budget.fit(messages, [], 1100, 100)
+    fitted = context_budget.fit(messages, [], 762, 100)  # 150 tokens: the old exchange can't stay
     assert fitted == messages[:1] + messages[3:]
+
+
+def test_budget_counts_tokens_not_bytes():
+    """A ~7,000-token prompt (~28 KB) is a quarter of the 32k window; counting bytes as
+    tokens refused it (2026-10-16, a garden follow-up). Past the window still refuses."""
+    prompt = [{'role': 'system', 'content': 'x' * 28000}, {'role': 'user', 'content': 'when do I dig them?'}]
+    assert context_budget.fit(prompt, [], 32768, 768) == prompt
+    with pytest.raises(ValueError, match='exceed'):
+        context_budget.fit([{'role': 'system', 'content': 'x' * 100000}, prompt[1]], [], 32768, 768)
 
 
 def test_oversize_current_request_rejected_and_truncation_visible():
