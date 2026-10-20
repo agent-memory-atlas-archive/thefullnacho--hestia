@@ -101,14 +101,26 @@ def execute(action: str, title: str | None = None, why: str | None = None,
             target: str | None = None, steps: list | None = None,
             goal: str | None = None, step: str | None = None) -> str:
     if action == "propose":
+        # An unreadable date costs that date, not the plan: the step stays undated and the
+        # person can set it on the Goals page. A habit's "ongoing" target is the usual case.
+        unread = []
+
+        def lenient(phrase):
+            try:
+                return _day(phrase)
+            except ValueError:
+                unread.append(phrase.strip())
+                return None
         try:
-            plan = [{"text": s.get("text", ""), "due": _day(s.get("due"))} for s in (steps or [])]
-            g = store.propose(title or "", plan, why=why or "", target=_day(target))
+            plan = [{"text": s.get("text", ""), "due": lenient(s.get("due"))} for s in (steps or [])]
+            g = store.propose(title or "", plan, why=why or "", target=lenient(target))
         except ValueError as e:
             return f"Error: {e}"
         lines = "\n".join(_line(s) for s in g["steps"])
+        note = ("\nLeft undated (not a date I could read): " + "; ".join(f"'{u}'" for u in unread) +
+                ". Set dates on the Goals page if they need one.") if unread else ""
         return (f"Drafted goal #{g['id']} for review: {g['title']}, {len(g['steps'])} steps.\n"
-                f"{lines}\nNothing is scheduled until it is approved on the Goals page (/app#goals).")
+                f"{lines}{note}\nNothing is scheduled until it is approved on the Goals page (/app#goals).")
     if action == "list":
         live = store.goals(("proposed", "active"))
         if not live:

@@ -109,10 +109,14 @@ def test_propose_resolves_date_phrases_in_code(db):
     assert g["target"] == day(28) and g["steps"][0]["due"] == day(3) and g["steps"][1]["due"] is None
 
 
-def test_propose_with_an_unreadable_date_says_so(db):
-    out = tool.execute("propose", title="t", steps=[{"text": "a", "due": "whenever-ish"}])
-    assert out.startswith("Error:") and "whenever-ish" in out
-    assert goals_store.goals() == []
+def test_an_unreadable_date_costs_the_date_not_the_plan(db):
+    """Gemma put 'Ongoing consistency on AKC and GoodDog' in target (2026-10-20); refusing the
+    whole plan over it lost a good draft."""
+    out = tool.execute("propose", title="Puppy content habit", target="Ongoing consistency",
+                       steps=[{"text": "Pick two shoot days", "due": "whenever-ish"}, {"text": "First shoot", "due": "in 3 days"}])
+    assert out.startswith("Drafted goal #") and "'Ongoing consistency'" in out and "'whenever-ish'" in out
+    g = goals_store.goals()[0]
+    assert g["target"] is None and g["steps"][0]["due"] is None and g["steps"][1]["due"] == day(3)
 
 
 def approved(db):
