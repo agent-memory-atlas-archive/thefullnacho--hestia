@@ -29,7 +29,7 @@ import daily_facts                     # noqa: E402 — shared scheduled-workflo
 from tools import weather              # noqa: E402
 
 OLLAMA = os.environ.get("HESTIA_OLLAMA", "http://127.0.0.1:11434")
-MODEL = os.environ.get("HESTIA_JOURNAL_MODEL") or os.environ.get("HESTIA_MODEL", "qwen3:14b")
+MODEL = os.environ.get("HESTIA_JOURNAL_MODEL") or os.environ.get("HESTIA_MODEL", "gemma4:12b")
 TIMEOUT = float(os.environ.get("HESTIA_JOURNAL_TIMEOUT", "60"))
 JOURNAL_DIR = config.DATA_DIR / "journal"
 

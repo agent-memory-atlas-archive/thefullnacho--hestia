@@ -27,7 +27,7 @@ import memory_store
 
 OLLAMA = os.environ.get("HESTIA_NOTETAKER_OLLAMA") or os.environ.get("HESTIA_OLLAMA", "http://127.0.0.1:11434")
 # Reuse the resident brain by default (hot, zero cold-start); override to offload.
-MODEL = os.environ.get("HESTIA_NOTETAKER_MODEL") or os.environ.get("HESTIA_MODEL", "qwen3:14b")
+MODEL = os.environ.get("HESTIA_NOTETAKER_MODEL") or os.environ.get("HESTIA_MODEL", "gemma4:12b")
 ENABLED = os.environ.get("HESTIA_NOTETAKER", "1") not in ("0", "", "false", "False")
 TIMEOUT = float(os.environ.get("HESTIA_NOTETAKER_TIMEOUT", "30"))
 INBOX_DIR = config.INBOX_DIR

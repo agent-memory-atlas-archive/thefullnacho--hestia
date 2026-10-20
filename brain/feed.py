@@ -34,7 +34,7 @@ import feed_store                      # noqa: E402
 from tools import search               # noqa: E402 — SearXNG address + the public-only guard
 
 OLLAMA = os.environ.get("HESTIA_OLLAMA", "http://127.0.0.1:11434")
-MODEL = os.environ.get("HESTIA_FEED_MODEL") or os.environ.get("HESTIA_MODEL", "qwen3:14b")
+MODEL = os.environ.get("HESTIA_FEED_MODEL") or os.environ.get("HESTIA_MODEL", "gemma4:12b")
 TIMEOUT = float(os.environ.get("HESTIA_FEED_TIMEOUT", "180"))
 # Twenty-odd candidates run to roughly 8k tokens, past Ollama's small default window, and
 # matching the brain's own num_ctx keeps the resident model loaded instead of reloading it.

@@ -35,7 +35,7 @@ HA_TOKEN = os.environ.get("HA_TOKEN", "")
 NOTIFY = os.environ.get("BRIEFING_NOTIFY",
                         os.environ.get("GARDEN_NOTIFY", "mobile_app_alexs_iphone"))
 OLLAMA = os.environ.get("HESTIA_OLLAMA", "http://127.0.0.1:11434")
-MODEL = os.environ.get("HESTIA_MODEL") or os.environ.get("HESTIA_BRIEFING_MODEL", "qwen3:14b")
+MODEL = os.environ.get("HESTIA_MODEL") or os.environ.get("HESTIA_BRIEFING_MODEL", "gemma4:12b")
 ANNOUNCE = os.environ.get("HESTIA_BRIEFING_ANNOUNCE", "1") not in ("0", "", "false", "False")
 TIMEOUT = float(os.environ.get("HESTIA_BRIEFING_TIMEOUT", "60"))
 MEDIA_WINDOW_H = 24
