@@ -7,6 +7,25 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-20 - memory inbox triage, and asks that are build tickets
+
+- **Triage:** 29 note-taker proposals from one day. 5 promoted, 24 discarded, and 5 stale or
+  wrong earlier approvals retired to `memory/retired/` (out of recall, recoverable). Keep rate
+  about 1 in 6. The discards were mostly the assistant describing its own system, duplicates,
+  things the goals store now holds, and requests phrased as facts.
+- **Asks from chat that are code, not memory** (logged here instead of remembered):
+  - Threshold alerts such as a greenhouse temperature drop: the planned greenhouse winter
+    variant of the kennel box watcher. Code owns the threshold (invariant 1).
+  - Network failure alerts: the dedi watchdog covers the brain; anything wider is new scope.
+  - A nightly review of network logs for anomalies: new, touches security, needs a decision.
+  - "Navigator, not narrator" (proactive rather than reactive): a direction, filed with the
+    agency ladder in HARNESS.md "Household goals".
+- **Next concrete action:** tighten the note-taker's extraction prompt to household facts only
+  (no system self-description, no requests or tasks, no passing project state), so the inbox
+  stops growing at the source.
+
+---
+
 ## 2026-10-20 - session close
 
 - **Landed today, all on `main` and deployed:** context trim logging (ad9db4e); gemma4:12b
