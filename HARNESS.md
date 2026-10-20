@@ -137,8 +137,8 @@ only its section into `{"error": ...}`.
 
 ## The app
 
-`/app` is one page with four flat views picked by the URL hash: `#chat`, `#today`,
-`#status` and `#library`. The page is `clients/chat.html`; its styles and scripts are
+`/app` is one page with five flat views picked by the URL hash: `#chat`, `#today`,
+`#goals`, `#status` and `#library`. The page is `clients/chat.html`; its styles and scripts are
 plain files beside it (`theme.css`, `app.css`, `core.js`, then one script per view),
 served by `GET /app/{name}` and cached network-first by the service worker. No build step.
 
@@ -148,7 +148,11 @@ served by `GET /app/{name}` and cached network-first by the service worker. No b
   its own threads. An empty conversation offers one-tap starters; "What's due today?"
   opens Today instead of asking the model.
 - **Today** reads `GET /today` and never calls the model: reminders, calendar, the queue's
-  home and chore columns, maintenance due, the shopping list. Each section fails on its own.
+  home and chore columns, maintenance due, the shopping list, and goal steps overdue, due
+  today or next up. Each section fails on its own.
+- **Goals** reads `GET /api/goals`. Drafts the model proposed are editable cards with
+  Approve and Discard; active goals list their steps with a tap-to-tick box (tap again to
+  undo). No model is involved in anything on this page (see "Household goals" below).
 - **Status** is the `/status` snapshot plus maintenance and the memory inbox. The inbox is
   shown read-only and points at `review_notes.py`; there are deliberately no Approve buttons.
   It polls every 15 seconds only while visible and the app is in the foreground.
@@ -376,3 +380,26 @@ are atomic and serialized, and duplicate approvals are idempotent. Sources, draf
 and versions are retained until manually removed. Existing recipe files remain
 readable without migration. The review API shares the brain's private network
 boundary and requires same-origin browser mutation headers.
+
+## Household goals
+
+The proving ground for model agency, split along the determinism line. The model does the
+judgment: the `goals` skill (triggers like "goal", "plan", "ready by") tells it how to break an
+outcome into 3 to 8 concrete dated steps, and `goals propose` files the draft. Date phrases
+are resolved by the tool with the reminder parser, never by the model. A draft is inert: no
+reminders, no records, until a person approves it on the Goals page, editing on the way.
+
+Approval keeps the model's original draft beside the approved plan and stores what changed
+(steps kept, edited, redated, added, removed). That is the plan-quality signal: watch it
+before widening the model's leash. From approval on it is all code in `goals_store.py`: each
+dated step gets a 9am phone reminder in the existing `reminders` table, a ticked step cancels
+its reminder and writes a `goal` records event, the last step closes the goal, overdue is a
+date comparison in the morning briefing and on Today.
+
+The model may tick a step from chat ("finally ordered the heater"): `goals done` matches the
+user's words against open steps, asks when two match equally, and its receipt says it can be
+undone on the page. The router offers the `goals` tool when a message shares two meaningful
+words with an open step, so a finished step needs no keyword. The model cannot edit an
+approved plan; a re-plan is a new draft. Page writes need the `X-Hestia-Goals` header and a
+same-origin JSON body, like recipe approval. The MCP server exposes `list` and `show` only.
+

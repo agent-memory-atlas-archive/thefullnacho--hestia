@@ -22,6 +22,7 @@
 <script defer src="/app/core.js"></script>
 <script defer src="/app/chat.js"></script>
 <script defer src="/app/today.js"></script>
+<script defer src="/app/goals.js"></script>
 <script defer src="/app/status.js"></script>
 <script defer src="/app/feed.js"></script>
 <script defer src="/app/library.js"></script>
@@ -33,6 +34,7 @@
     <nav id="menu" aria-label="Hestia" hidden>
       <a class="menu-item" href="#chat" data-view="chat"><span data-icon="chat"></span><span>Chat</span></a>
       <a class="menu-item" href="#today" data-view="today"><span data-icon="today"></span><span>Today</span><span class="hint">no AI</span></a>
+      <a class="menu-item" href="#goals" data-view="goals"><span data-icon="goals"></span><span>Goals</span></a>
       <a class="menu-item" href="#status" data-view="status"><span data-icon="status"></span><span>Status</span></a>
       <a class="menu-item" href="#library" data-view="library"><span data-icon="library"></span><span>Library</span></a>
       <div class="menu-divider"></div>
@@ -109,6 +111,17 @@
         </div>
         <p class="muted" style="margin:0">Straight from the stores. No model, no GPU.</p>
         <div id="todayBody"><div class="empty">Loading…</div></div>
+      </div>
+    </section>
+
+    <section id="view-goals" class="view" aria-label="Goals" hidden>
+      <div class="view-scroll">
+        <div class="view-head">
+          <h1 tabindex="-1">Goals</h1><span class="spacer"></span>
+          <button class="pill-btn" id="goalsRefresh">Refresh</button>
+        </div>
+        <p class="muted" style="margin:0">Hestia drafts the plan. You approve it. The house keeps track.</p>
+        <div id="goalsBody"><div class="empty">Loading…</div></div>
       </div>
     </section>
 

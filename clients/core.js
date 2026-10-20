@@ -11,6 +11,7 @@ const ICONS = {
   chat: svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
   today: svg('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 15 13"/>'),
   status: svg('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'),
+  goals: svg('<path d="M4 22V4"/><path d="M4 4h12l-2 4 2 4H4"/>'),
   library: svg('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'),
   clips: svg('<rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/>', 22),
   recipes: svg('<path d="M18 2h-8a4 4 0 0 0-4 4v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/><path d="M6 18h14"/><line x1="10" y1="6" x2="14" y2="6"/><line x1="10" y1="10" x2="14" y2="10"/>', 22),
@@ -139,7 +140,7 @@ function forgetToken(kind) { store.del(TOKENS[kind].key); }
 
 // --- Views and #hash routing. Each view file registers { enter, leave, title }. ---
 const Hestia = { views: {}, current: null };
-const VIEW_NAMES = ['chat', 'today', 'status', 'library'];
+const VIEW_NAMES = ['chat', 'today', 'goals', 'status', 'library'];
 
 function route() {
   const name = (location.hash.replace('#', '') || 'chat').split('/')[0];

@@ -272,6 +272,28 @@ dialog input, dialog select {
 .t-none { color: var(--muted); font-size: 13.5px; }
 .t-err { color: var(--warn-text); font-size: 13px; }
 
+/* --- Goals --- */
+.g-label { display: block; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+.g-input {
+  display: block; width: 100%; margin-top: 4px; background: var(--sunk); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; font-size: 14px;
+}
+.g-edit { margin: 6px 0 10px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.g-edit li { display: flex; gap: 6px; align-items: center; }
+.g-edit li .g-input { margin-top: 0; }
+.g-edit li .g-date { width: 9.5em; flex-shrink: 0; }
+.g-del { flex-shrink: 0; }
+.g-steps { margin-top: 12px; }
+.g-steps .g-step { align-items: center; }
+.g-check {
+  width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; cursor: pointer; padding: 0;
+  border: 1.5px solid var(--line); background: var(--sunk); color: var(--accent-ink);
+  display: grid; place-items: center;
+}
+.g-step.is-done .g-check { background: var(--accent); border-color: var(--accent); }
+.g-step.is-done .g-text { color: var(--muted); text-decoration: line-through; }
+@media (max-width: 420px) { .g-edit li { flex-wrap: wrap; } .g-edit li .g-date { width: auto; flex: 1; } }
+
 /* --- Library: picks --- */
 .chip.radio { display: inline-flex; align-items: center; }
 .chip.radio input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -329,4 +351,4 @@ dialog input, dialog select {
 .lib-link:hover { border-color: var(--accent-line); }
 .lib-link svg { color: var(--accent); flex-shrink: 0; }
 .lib-link small { display: block; color: var(--muted); font-size: 12px; }
-#todayBody, #statusBody { display: flex; flex-direction: column; gap: 14px; }
+#todayBody, #statusBody, #goalsBody { display: flex; flex-direction: column; gap: 14px; }

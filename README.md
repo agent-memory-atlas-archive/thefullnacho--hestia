@@ -17,7 +17,8 @@ the long version; [MEMORY-DESIGN.md](MEMORY-DESIGN.md) covers the memory plan.)
 
 - **A brain** (`brain/`) — an OpenAI-compatible endpoint (`POST /v1/chat/completions`) wrapping a
   local LLM (Ollama, `gemma4:12b`) with an agent loop. Every client speaks one dialect.
-- **Eleven scoped tools** — `calendar` (the household calendar, backed by HA's Local Calendar),
+- **Twelve scoped tools** — `calendar` (the household calendar, backed by HA's Local Calendar),
+  `goals` (household goals: the model drafts a dated plan, a person approves it, code tracks it),
   `home` (control Home Assistant), `media` (Plex + *arr), `memory`, `records`, `recipe` (the
   household's recipe collection), `reminder`, `search`, `shopping` (the household shopping list,
   backed by HA's todo list), `status`, `weather`. There is
@@ -92,7 +93,7 @@ Hestia is part of the **Forager / Homesteader Labs** constellation, alongside `f
   agent sets `continue_conversation` when it expects a follow-up, so multi-step exchanges
   (recipes, especially) don't need re-waking.
 - **Phase 4 — The seam (memory + tools)** ✅ *core in place, still growing* — the brain is a
-  tool-calling agent with the eleven tools above plus deterministic skill injection, and **HA's
+  tool-calling agent with the twelve tools above plus deterministic skill injection, and **HA's
   conversation agent points at Hestia**, so Assist and voice route through the brain (which can
   control HA back). It also gets smarter over time via the note-taker (see *Memory & learning*).
   Next: vision (Eyes).

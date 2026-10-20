@@ -53,6 +53,8 @@ import board  # noqa: E402
 import note_taker  # noqa: E402
 import records_store  # noqa: E402
 import reminders_store  # noqa: E402
+import goals_api  # noqa: E402
+import goals_store  # noqa: E402
 import review_notes  # noqa: E402
 import threads_store  # noqa: E402
 import utterance_store  # noqa: E402
@@ -148,7 +150,7 @@ _ASKS = re.compile(r"\b(?:save|import|add|keep|draft|read|summar\w*|open|what|ho
 _CLAIM_VERB = (r"\b(?:set|added|logged|saved|imported|scheduled|created|recorded|drafted|booked|"
                r"marked|crossed off|removed)\b")
 _CLAIM_STORE = (r"\b(?:reminders?|alarm|timer|(?:shopping|grocery|to-?do) list|list|calendar|recipes?|"
-                r"collection|drafts?|log|records?|inventory|pantry)\b")
+                r"collection|drafts?|log|records?|inventory|pantry|goals?|plans?|steps?)\b")
 _CLAIMS = re.compile(rf"\breminder #\d+ set\b|{_CLAIM_VERB}[^.!?\n]{{0,80}}{_CLAIM_STORE}|"
                      rf"{_CLAIM_STORE}[^.!?\n]{{0,40}}\b(?:is|are|has been|have been|was) "
                      rf"(?:now )?{_CLAIM_VERB}", re.I)
@@ -535,6 +537,7 @@ def _is_soil_readout(user_text: str) -> bool:
 _INTENT_TOOLS = {
     'home': r"\b(?:light|lights|lamp|lamps)\b|\bturn\b[^.!?]{0,120}\b(?:on|off)\b",
     'reminder': r"\b(?:remind|reminder|timer|alarm)\b",
+    'goals': r"\bgoals?\b|\bmilestones?\b|\bplan (?:out|for)\b|\bmake a plan\b",
     'calendar': r"\b(?:calendar|schedule|scheduled|appointment|appointments|event|events|birthday|birthdays|anniversary|coming up|this week|next week|weekend)\b",
     'shopping': r"\b(?:shopping|grocery|groceries|out of|buy)\b|\badd\b.+\blist\b",
     'memory': r"\b(?:remember|recall|preference|prefer|previously told)\b",
@@ -574,6 +577,13 @@ def _required_writes(text: str) -> set[str]:
     return found
 
 
+def _finishes_open_step(query: str) -> bool:
+    try:
+        return records_store.DB_PATH.exists() and bool(goals_store.match_open_steps(query))
+    except Exception:  # noqa: BLE001 — routing must never fail a turn over the goals table
+        return False
+
+
 def _request_schemas(user_text: str) -> list:
     """Reuse the prepared plan. Schema selection performs no network I/O."""
     plan = _prepared.get() or _context_plan(user_text)
@@ -584,6 +594,10 @@ def _request_schemas(user_text: str) -> list:
     if plan['garden_topic']:
         allow.update(('home', 'weather', 'records'))
     allow.update(explicit)
+    # "Finally ordered the heater" names no goal, but it finishes an open step: offer the tool
+    # when the words overlap one. A local read; an empty allow set already means every tool.
+    if allow and 'goals' not in allow and _finishes_open_step(query):
+        allow.add('goals')
     if (plan['garden_topic'] and _is_soil_readout(user_text) and plan.get('soil_available')
             and not explicit):
         return []
@@ -1104,6 +1118,20 @@ def _today_maintenance() -> dict:
     return {"count": len(rows), "assets": rows}
 
 
+def _today_goals() -> dict:
+    """Each active goal's next open step, plus overdue and today's steps and drafts waiting."""
+    live = goals_store.goals(("proposed", "active"))
+    active = []
+    for g in live:
+        if g["status"] != "active":
+            continue
+        nxt = next((s for s in g["steps"] if not s["done_at"]), None)
+        active.append({"id": g["id"], "title": g["title"], "done": g["done"], "total": len(g["steps"]),
+                       "next": nxt and {"id": nxt["id"], "text": nxt["text"], "due": nxt["due"]}})
+    return {"active": active, "overdue": goals_store.overdue(), "today": goals_store.due_on(),
+            "drafts": sum(1 for g in live if g["status"] == "proposed")}
+
+
 @app.get("/today")
 async def today():
     """The app's Today view: what's due, read straight from the stores. No model, no writes.
@@ -1115,7 +1143,8 @@ async def today():
      "shopping":    {"items": ["milk", ...]},                           open items only
      "calendar":    {"events": [{"summary", "start", "end", "all_day", "location", "calendar"}]},
      "queue":       board.snapshot(), the same object /queue.json serves,
-     "maintenance": {"count", "assets"}, the same object /maintenance/due serves}"""
+     "maintenance": {"count", "assets"}, the same object /maintenance/due serves,
+     "goals":       {"active": [{"id","title","done","total","next"}], "overdue", "today", "drafts"}}"""
     now = _dt.datetime.now()
     sections = {
         "reminders": lambda: _today_reminders(now),
@@ -1123,6 +1152,7 @@ async def today():
         "calendar": lambda: _today_calendar(now),
         "queue": board.snapshot,
         "maintenance": _today_maintenance,
+        "goals": _today_goals,
     }
 
     async def run(name, fn):
@@ -1787,3 +1817,4 @@ async def _organize_recipe_source(source: str) -> dict:
 
 
 app.include_router(recipe_review.router(_organize_recipe_source))
+app.include_router(goals_api.router())

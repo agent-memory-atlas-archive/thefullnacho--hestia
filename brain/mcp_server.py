@@ -49,6 +49,7 @@ AUDIT = Path(os.environ.get("HESTIA_MCP_AUDIT") or config.DATA_DIR / "mcp_audit.
 # guards it, so adding a tool to the brain forces a decision about whether the operator gets it.
 READ_ONLY: dict[str, tuple[str, tuple[str, ...]] | None] = {
     "calendar": ("action", ("show",)),
+    "goals": ("action", ("list", "show")),
     "home": ("action", ("get_state",)),
     "media": ("action", ("status",)),
     "memory": ("op", ("recall",)),

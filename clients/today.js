@@ -21,6 +21,24 @@
       '<li><span>' + esc(r.text) + '</span><span class="when' + (r.overdue ? ' late' : '') + '">' +
       (r.overdue ? 'overdue · ' : '') + time(r.due_at) + '</span></li>'), 'Nothing due today.'));
 
+    const gl = t.goals || {};
+    if (gl.error) h += card('Goals', failed(gl));
+    else if ((gl.active || []).length || gl.drafts) {
+      const rows = [];
+      (gl.overdue || []).forEach(s => rows.push('<li><span>' + esc(s.text) + ' <span class="muted">· ' + esc(s.goal_title) +
+        '</span></span><span class="when late">overdue ' + s.days + 'd</span></li>'));
+      (gl.today || []).forEach(s => rows.push('<li><span>' + esc(s.text) + ' <span class="muted">· ' + esc(s.goal_title) +
+        '</span></span><span class="when">today</span></li>'));
+      const shown = new Set([...(gl.overdue || []), ...(gl.today || [])].map(s => s.id));
+      (gl.active || []).forEach(g => {
+        if (g.next && !shown.has(g.next.id)) rows.push('<li><span>' + esc(g.next.text) + ' <span class="muted">· ' +
+          esc(g.title) + '</span></span><span class="when">' + g.done + '/' + g.total + '</span></li>');
+      });
+      h += card('Goals', (gl.drafts ? '<p class="t-err" style="margin:0 0 10px">' + gl.drafts + ' draft' +
+        (gl.drafts > 1 ? 's' : '') + ' waiting for approval.</p>' : '') + list(rows, 'Nothing due.') +
+        '<p class="meta" style="margin-top:10px"><a href="#goals">Open goals</a></p>');
+    }
+
     const cal = t.calendar || {};
     h += card('Calendar', failed(cal) || list((cal.events || []).map(e =>
       '<li><span>' + esc(e.summary) + (e.location ? ' <span class="muted">· ' + esc(e.location) + '</span>' : '') +

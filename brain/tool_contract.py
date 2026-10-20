@@ -10,7 +10,7 @@ MUTATIONS = {
     'records': {'remember', 'log', 'birth', 'harvest', 'relate'},
     'memory': {'write'}, 'recipe': {'save', 'import_url'}, 'media': {'add'},
     'reminder': {'create', 'cancel'}, 'shopping': {'add', 'remove', 'clear'},
-    'calendar': {'add'},
+    'calendar': {'add'}, 'goals': {'propose', 'done'},
 }
 REQUIRED = {
     ('home', 'turn_on'): ('entity_id',), ('home', 'turn_off'): ('entity_id',),
@@ -23,6 +23,7 @@ REQUIRED = {
     ('reminder', 'create'): ('when',), ('reminder', 'cancel'): ('id',),
     ('shopping', 'add'): ('items',), ('shopping', 'remove'): ('items',),
     ('calendar', 'add'): ('title', 'when'),
+    ('goals', 'propose'): ('title', 'steps'), ('goals', 'done'): ('step',), ('goals', 'show'): ('goal',),
     ('search', 'search'): ('query',), ('search', 'fetch'): ('url',),
 }
 
@@ -127,6 +128,7 @@ def receipt(name, args, text, outcome='ok', operation_id=''):
         'reminder': ('Reminder #', 'Reminder cancelled.'),
         'shopping': ('Added to ', 'Already on it:', 'Took off ', 'Cleared '),
         'calendar': ('Added to the calendar:',),
+        'goals': ('Drafted goal ', 'Marked done: ', 'Already done: '),
         'home': ('Done ', 'Sent '), 'media': ('Added ', 'Queued ', 'Already '),
     }
     if (text.startswith(success.get(name, ())) or
@@ -134,6 +136,8 @@ def receipt(name, args, text, outcome='ok', operation_id=''):
         return ToolResult('succeeded', text, operation_id)
     # These paths reject before dispatch or before their store write.
     if name in ('reminder', 'calendar') and text.startswith(("I couldn't read", 'No pending reminder', 'Which reminder')):
+        return ToolResult('failed', text, operation_id, 'invalid_target_or_time')
+    if name == 'goals' and text.startswith(('Error', 'No open goal step', 'Which step')):
         return ToolResult('failed', text, operation_id, 'invalid_target_or_time')
     return ToolResult('unknown', text, operation_id, 'unverified_write')
 

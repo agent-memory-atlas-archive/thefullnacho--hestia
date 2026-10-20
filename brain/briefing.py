@@ -25,6 +25,7 @@ import garden_watch                    # noqa: E402 — reuse soil_beds + build_
 import ha_announce                     # noqa: E402 — one Assist-satellite delivery path
 import records_store                   # noqa: E402
 import reminders_store                 # noqa: E402
+import goals_store                     # noqa: E402
 import briefing_store                  # noqa: E402
 import daily_facts                     # noqa: E402 — shared scheduled-workflow collectors
 from tools import weather              # noqa: E402
@@ -142,6 +143,19 @@ def _media_facts(now: dt.datetime) -> list[str]:
     return [f"New on Plex overnight: {shown}."]
 
 
+def _goal_facts(now: dt.datetime) -> list[str]:
+    """Goal steps due today and overdue, as plain dated facts. The count is code's."""
+    facts = [f"Goal step due today: {s['text']} (goal: {s['goal_title']})."
+             for s in goals_store.due_on(now.date())]
+    late = goals_store.overdue(now.date())
+    for s in late[:3]:
+        days = f"{s['days']} day{'s' if s['days'] != 1 else ''}"
+        facts.append(f"Goal step overdue by {days}: {s['text']} (goal: {s['goal_title']}).")
+    if len(late) > 3:
+        facts.append(f"{len(late) - 3} more goal steps are overdue.")
+    return facts
+
+
 def build_facts(now: dt.datetime | None = None) -> list[str]:
     """All fact lines for this morning. Each section is independent — one backend being
     down costs its section, never the briefing."""
@@ -151,6 +165,7 @@ def build_facts(now: dt.datetime | None = None) -> list[str]:
                            ("garden", _garden_facts),
                            ("maintenance", _records_facts),
                            ("reminders", lambda: _reminder_facts(now)),
+                           ("goals", lambda: _goal_facts(now)),
                            ("calendar", lambda: _calendar_facts(now)),
                            ("media arrivals", lambda: _media_facts(now))):
         try:
