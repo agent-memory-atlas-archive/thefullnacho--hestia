@@ -7,6 +7,21 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-20 - the 4060 Ti is out of the GPU box for a while; voice is down
+
+- **Voice off on purpose:** `hestia-whisper` and `hestia-chatterbox` are stopped and disabled
+  (they live on the 4060 Ti and would crash-loop without it). The kitchen Voice PE and the
+  briefing's spoken announce are down; chat, phone pushes and everything else run on the 5080.
+- **The brain survives the reboot without the card:** Ollama is pinned to GPU 0 in PCI-bus order,
+  which stays the 5080 with the Ti removed. (The installed unit pins by index while the tracked
+  unit pins by UUID: drift, harmless here, worth aligning when the card is back.)
+- **Restore, once the card is back in:** `systemctl --user enable --now hestia-whisper
+  hestia-chatterbox`, then a spoken test on the Voice PE.
+
+[non-production] Put the 4060 Ti back in the GPU box, then tell a session to re-enable voice.
+
+---
+
 ## 2026-10-20 - memory inbox triage, and asks that are build tickets
 
 - **Triage:** 29 note-taker proposals from one day. 5 promoted, 24 discarded, and 5 stale or
