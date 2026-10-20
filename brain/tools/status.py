@@ -25,7 +25,7 @@ from . import home, media
 
 # The resident inference engine (see hestia-ollama.service / hestia-brain.service).
 OLLAMA_URL = os.environ.get("HESTIA_OLLAMA", "http://127.0.0.1:11434").rstrip("/")
-BRAIN_MODEL = os.environ.get("HESTIA_MODEL", "qwen3:14b")
+BRAIN_MODEL = os.environ.get("HESTIA_MODEL", "gemma4:12b")
 
 # Probes are best-effort and short — the whole readout runs them in parallel, so even with
 # several services down the call returns in about one timeout, not the sum of them.

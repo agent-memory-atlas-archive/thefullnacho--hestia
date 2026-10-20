@@ -43,6 +43,14 @@ modest latency win didn't justify swapping. `gemma4:12b` retained as the stronge
 Rejected: `lfm2.5:8b` (judgment flakiness), `qwen3.5:9b` (records-logging gap),
 `Mellum2` (code-specialized, weak on garden reasoning).
 
+**Superseded 2026-10-20: `gemma4:12b` is resident.** It went live as a trial drop-in on
+2026-09-06 and stayed. Its first weeks were judged under a harness bug: from 2026-09-06 to
+2026-10-16 the context budget counted bytes as tokens and silently dropped nearly all chat
+history every turn, so replies read as generic and short. After the fix the operator rated the
+system the best it has been. Thread replies went from 228 to 1,241 characters on average
+(3 threads, too few to call a measurement). The confabulation slip above is still the thing to
+watch; `qwen3:14b` stays on disk as the fallback.
+
 ## Infra notes uncovered during this eval
 
 - **Ollama upgrade**: 0.24.0 → 0.30.8 (the new Qwen3.5/Mellum2 archs need ≥0.30).

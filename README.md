@@ -16,7 +16,7 @@ the long version; [MEMORY-DESIGN.md](MEMORY-DESIGN.md) covers the memory plan.)
 **What it actually is.**
 
 - **A brain** (`brain/`) — an OpenAI-compatible endpoint (`POST /v1/chat/completions`) wrapping a
-  local LLM (Ollama, `qwen3:14b`) with an agent loop. Every client speaks one dialect.
+  local LLM (Ollama, `gemma4:12b`) with an agent loop. Every client speaks one dialect.
 - **Eleven scoped tools** — `calendar` (the household calendar, backed by HA's Local Calendar),
   `home` (control Home Assistant), `media` (Plex + *arr), `memory`, `records`, `recipe` (the
   household's recipe collection), `reminder`, `search`, `shopping` (the household shopping list,
@@ -128,8 +128,8 @@ installed into `~/.config/systemd/user/`. Linger is enabled, so they survive
 logout/reboot. Ollama is pinned to the 5080 (`CUDA_VISIBLE_DEVICES`), leaving the
 4060 Ti free for the voice pipeline (Whisper STT + TTS) per the benchmark verdict.
 
-Model: **`qwen3:14b`** (resident, thinking off) — the current pick after the model eval
-(`brain/eval_models.py`; `qwen2.5:14b` kept on disk as a fallback). See `MODEL_EVAL.md`.
+Model: **`gemma4:12b`** (resident, thinking off), promoted from trial on 2026-10-20 after six
+weeks live. `qwen3:14b` stays on disk as the fallback. See `MODEL_EVAL.md`.
 
 ### Operate
 

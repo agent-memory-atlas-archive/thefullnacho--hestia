@@ -3,7 +3,7 @@
 Still exposes one OpenAI-compatible endpoint (POST /v1/chat/completions) so every
 window — terminal, phone, kitchen mic — speaks one dialect. But the brain is no
 longer a passthrough proxy: it owns the loop. Per request it recalls relevant
-memory, then runs a tool-calling loop against Ollama (qwen3:14b) — calling `home`
+memory, then runs a tool-calling loop against Ollama (gemma4:12b) — calling `home`
 to control the house, `memory` to remember/recall — until the model produces a final
 answer, which it returns to the client as a normal chat completion.
 
@@ -65,7 +65,7 @@ import recipe_review  # noqa: E402
 from prompt import SYSTEM_PROMPT  # noqa: E402
 
 OLLAMA = os.environ.get("HESTIA_OLLAMA", "http://127.0.0.1:11434")
-MODEL = os.environ.get("HESTIA_MODEL", "qwen3:14b")
+MODEL = os.environ.get("HESTIA_MODEL", "gemma4:12b")
 # Model backend: "ollama" (native /api/chat) or "openai" (OpenAI-compatible
 # /v1/chat/completions, e.g. mlx_lm.server on the tailnet MacBook).
 BACKEND = os.environ.get("HESTIA_BACKEND", "ollama")

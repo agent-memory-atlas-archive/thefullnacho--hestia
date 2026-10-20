@@ -7,8 +7,9 @@ Wants=hestia-ollama.service
 Type=exec
 WorkingDirectory=%h/hestia/brain
 Environment=HESTIA_OLLAMA=http://127.0.0.1:11434
-Environment=HESTIA_MODEL=qwen3:14b
-# qwen3 thinking off = fast resident mode (eval: 100%/100% English @1.5s). Set 1 to enable.
+Environment=HESTIA_MODEL=gemma4:12b
+# Resident since the 2026-09-06 trial, promoted 2026-10-20 (MODEL_EVAL.md). Fallback: qwen3:14b.
+# Thinking off = fast resident mode. Set 1 to enable.
 Environment=HESTIA_THINK=0
 # Bound to the Tailscale IP (NOT 0.0.0.0) so the brain is reachable only over the private
 # mesh — phone, laptop, hl-relay/HA — and is physically absent from the LAN and docker

@@ -5,7 +5,7 @@ Guidance for Claude Code working in this repository.
 ## What this is
 
 Hestia is a local-first home assistant: **one stateful brain, many thin windows.** A local LLM
-(Ollama, `qwen3:14b`) sits behind an OpenAI-compatible endpoint; the phone, the terminal, the
+(Ollama, `gemma4:12b`) sits behind an OpenAI-compatible endpoint; the phone, the terminal, the
 kitchen mic, and Home Assistant are all clients of that same brain, sharing one memory and one
 tool set. Nothing runs in the cloud. Nothing is exposed to the public internet.
 
