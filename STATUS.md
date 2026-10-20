@@ -7,6 +7,25 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-20 - session close
+
+- **Landed today, all on `main` and deployed:** context trim logging (ad9db4e); gemma4:12b
+  promoted with every model job defaulting to it and the trial drop-ins retired (df9898b,
+  9f4202e); household goals (cd109dc) plus its first-use fixes (eb3c1b7, 83100d0). The
+  operator has dated the first steps of the puppy content goal.
+- **In flight:** nothing in code. The goals feature is collecting real use.
+- **Watch:** the first Gemma-written nightly journal (23:45 tonight) and tomorrow's 07:10
+  briefing, now with no model swap in between. `hestiactl logs brain | grep CONTEXT` for a week.
+- **Open, found today:** the test suite reads the store at the default DB path (empty tables
+  only); find the test that skips the `db` fixture.
+- **Next concrete action:** find and fix that test, so the suite can run in the live checkout
+  without touching `data/hestia.db`.
+
+[non-production] Living-room TV security update pass (USB debugging on, `update-pass.sh`, accept
+the update on the TV, debugging off). Sent to the ~/me session for the queue.
+
+---
+
 ## 2026-10-20 - first real goal, and the gaps it showed
 
 - **First data point:** Gemma drafted "Puppy Content Creation Practice", 5 steps; the operator
