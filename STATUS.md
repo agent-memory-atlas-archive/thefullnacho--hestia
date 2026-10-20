@@ -15,6 +15,9 @@ is public. Those live in the operator's private notes.
 - **The brain survives the reboot without the card:** Ollama is pinned to GPU 0 in PCI-bus order,
   which stays the 5080 with the Ti removed. (The installed unit pins by index while the tracked
   unit pins by UUID: drift, harmless here, worth aligning when the card is back.)
+- **Guarded:** both voice units carry `10-needs-4060ti.conf` (`ExecCondition`: the card must be
+  listed by `nvidia-smi`), so a start from boot or from the render scripts that restart GPU
+  services is skipped cleanly instead of crash-looping, with nothing to undo when it returns.
 - **Restore, once the card is back in:** `systemctl --user enable --now hestia-whisper
   hestia-chatterbox`, then a spoken test on the Voice PE.
 
