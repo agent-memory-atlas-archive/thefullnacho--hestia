@@ -7,6 +7,33 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-20 - gemma4:12b is the resident model, and context trims are logged
+
+- **Model, decided:** `gemma4:12b` leaves trial and becomes the resident brain. It has run live
+  through a drop-in since 2026-09-06. The tracked unit, `hestia.py` and the `status` tool now
+  default to it; `qwen3:14b` stays on disk as the fallback. `MODEL_EVAL.md` records why the
+  2026-08 "keep qwen3:14b" call is superseded.
+- **Why now:** the byte fix (8a01e84, live 2026-10-16) changed the experience completely. For six
+  weeks the budget guard dropped nearly all chat history every turn, so the model answered each
+  follow-up almost cold and the replies read generic. Since the fix the operator rates Hestia the
+  best it has ever been. Chat thread replies averaged 228 characters before and 1,241 after (3
+  threads; direction only). Multi-turn verdicts from 2026-09-06 to 2026-10-16, including the
+  early "overtalker" read on Gemma, were formed under that bug.
+- **On `main` (ad9db4e):** `context_budget.fit()` logs every trim and refusal as
+  `[agent] CONTEXT TRIM` / `CONTEXT REFUSED`. The silent trim is what hid the bug. Deployed and
+  healthy.
+- **Live config, not changed here:** the nightly journal has no Gemma drop-in, so it still runs
+  `qwen3:14b` and Ollama swaps models at 23:45. The installed brain unit still carries stale
+  Qwen3.8-27B trial lines, masked by the Gemma drop-in. Both are cleanup for the operator's call.
+- **Idea, not built:** household goal planning in Hestia as the proving ground for model agency.
+  The model drafts and re-plans; plans pass the approval gate; code owns due dates and nudges;
+  a PWA page lists the steps. Boundary decided: goals are household, the operator's Claude queue
+  stays separate. First candidate goal: the greenhouse winter build.
+- **Next concrete action:** watch `hestiactl logs brain | grep CONTEXT` for a week of normal chat;
+  any trim on a short conversation means the estimate is wrong again.
+
+---
+
 ## 2026-10-10 - session close: the greenhouse door board is on the door
 
 - **Done, reported by the operator, not checked from here:** the box is mounted on the door frame,
