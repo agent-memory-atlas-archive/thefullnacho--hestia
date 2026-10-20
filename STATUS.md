@@ -7,6 +7,23 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-20 - first real goal, and the gaps it showed
+
+- **First data point:** Gemma drafted "Puppy Content Creation Practice", 5 steps; the operator
+  approved all 5 unchanged 47 seconds after the draft landed (review: kept 5, edited 0). n=1,
+  and a fast approval; read it as "the first draft was usable", not as a verdict.
+- **Gaps it exposed, fixed:** the first attempt wrote the plan in chat without calling the tool,
+  then the retry put "Ongoing consistency on AKC and GoodDog" in `target` and the tool refused
+  the whole plan (eb3c1b7: unreadable dates now cost only the date; the skill proposes in the
+  same turn and shapes habit goals). The approved plan had no dates at all, so nothing would
+  ever remind or go overdue (83100d0: open steps get a date picker on the Goals page that moves
+  their 9am push; the tool warns on an undated draft; the skill dates the first two steps). A
+  scratch run of the picker filed two reminders for one pick; goal writes now take the write
+  lock before reading, with a race test that fails 3/3 on the old code.
+- **Next concrete action:** date the first steps of the puppy goal on the Goals page.
+
+---
+
 ## 2026-10-20 - household goals shipped: the model plans, a person approves, the house tracks
 
 - **On `main` (cd109dc), deployed, brain healthy on Gemma.** New `goals` tool and skill, a
