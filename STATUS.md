@@ -7,6 +7,31 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-20 - household goals shipped: the model plans, a person approves, the house tracks
+
+- **On `main` (cd109dc), deployed, brain healthy on Gemma.** New `goals` tool and skill, a
+  Goals tab in the app, a goals card on Today, overdue goal steps in the 7:10 briefing.
+  HARNESS.md, "Household goals", is the long version.
+- **The split:** the model drafts 3 to 8 dated steps (`goals propose`); the draft is inert until
+  approved on the Goals tab, where steps can be edited, redated, removed or added. After that it
+  is code: a 9am phone reminder per dated step, a `goal` records event per tick, the last tick
+  closes the goal. The model may tick a step from chat (undoable on the page). It cannot edit an
+  approved plan; a re-plan is a new draft.
+- **The measurement:** approval stores the model's original draft and what changed (kept,
+  edited, redated, added, removed). Read those before giving the model more rope (re-planning
+  stalled goals is the next tier, not built).
+- **Verified:** 19 new tests; full suite green. The page was driven in headless Chrome against a
+  scratch brain and DB: edit, approve, tick, untick, Today card. No console errors. Not yet
+  tried: a real draft from Gemma in chat.
+- **Found, not fixed:** running the test suite creates `data/hestia.db` at the default path (empty
+  tables only, no rows). In the live checkout that path is the real DB. Harmless today because
+  it only runs `CREATE TABLE IF NOT EXISTS`, but some test reads the store without the `db`
+  fixture. Worth finding before a test that writes does the same.
+- **Next concrete action:** ask Hestia in chat for the greenhouse winter build as a goal, review
+  the draft on the Goals tab, and note how much you had to change.
+
+---
+
 ## 2026-10-20 - gemma4:12b is the resident model, and context trims are logged
 
 - **Model, decided:** `gemma4:12b` leaves trial and becomes the resident brain. It has run live
