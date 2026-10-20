@@ -72,14 +72,16 @@ def router() -> APIRouter:
     @api.post("/api/goals/steps/{sid}/{action}")
     async def step(sid: int, action: str, request: Request):
         try:
-            await body_json(request)
+            data = await body_json(request)
         except (ValueError, json.JSONDecodeError) as e:
             return JSONResponse({"ok": False, "error": str(e)}, status_code=409)
-        fn = {"done": store.mark_done, "undo": store.undo_done}.get(action)
+        fns = {"done": lambda: store.mark_done(sid), "undo": lambda: store.undo_done(sid),
+               "due": lambda: store.set_due(sid, data.get("due"))}
+        fn = fns.get(action)
         if fn is None:
             return JSONResponse({"ok": False, "error": f"Unknown step action '{action}'."}, status_code=404)
         try:
-            result = await asyncio.to_thread(fn, sid)
+            result = await asyncio.to_thread(fn)
             goal = await asyncio.to_thread(store.get, result["step"]["goal_id"])
         except LookupError as e:
             return JSONResponse({"ok": False, "error": str(e)}, status_code=404)

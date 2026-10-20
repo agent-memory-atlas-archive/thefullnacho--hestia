@@ -209,3 +209,55 @@ def test_briefing_states_overdue_steps(db):
     g = goals_store.propose("Garage", [{"text": "Sort the shelves", "due": day(-2)}])
     goals_store.approve(g["id"], "Garage", [{"id": g["steps"][0]["id"], "text": "Sort the shelves", "due": day(-2)}])
     assert briefing._goal_facts(dt.datetime.now()) == ["Goal step overdue by 2 days: Sort the shelves (goal: Garage)."]
+
+
+# ----- dating after approval (the first real plan came back with no dates, 2026-10-20) --------
+
+def test_a_person_can_date_and_redate_an_approved_step(db):
+    g = approved(db)
+    sid = g["steps"][0]["id"]
+    goals_store.set_due(sid, day(4))
+    assert [p["due_at"] for p in reminders_store.pending()] == [day(4) + "T09:00:00"]
+    goals_store.set_due(sid, day(6))
+    assert [p["due_at"] for p in reminders_store.pending()] == [day(6) + "T09:00:00"]
+    goals_store.set_due(sid, None)
+    assert reminders_store.pending() == [] and goals_store.get(g["id"])["steps"][0]["due"] is None
+    assert "step redated" in [e["action"] for e in db.recent_events(kind="goal")]
+
+
+def test_redating_refuses_drafts_and_done_steps(db):
+    d = draft(db)
+    with pytest.raises(ValueError):
+        goals_store.set_due(d["steps"][0]["id"], day(2))
+    g = approved(db)
+    goals_store.mark_done(g["steps"][0]["id"])
+    with pytest.raises(ValueError):
+        goals_store.set_due(g["steps"][0]["id"], day(2))
+
+
+def test_an_all_undated_plan_is_flagged_to_the_model(db):
+    out = tool.execute("propose", title="Puppy content", steps=[{"text": "Pick themes"}, {"text": "First shoot"}])
+    assert out.startswith("Drafted goal #") and "No step has a date" in out
+    dated = tool.execute("propose", title="Garage", steps=[{"text": "Sort", "due": "in 2 days"}])
+    assert "No step has a date" not in dated
+
+
+def test_page_redates_a_step(client):
+    g = approved(client)
+    sid = g["steps"][1]["id"]
+    r = client.post(f"/api/goals/steps/{sid}/due", json={"due": day(5)}, headers=H)
+    assert r.status_code == 200 and r.json()["goal"]["steps"][1]["due"] == day(5)
+    assert client.post(f"/api/goals/steps/{sid}/due", json={"due": "soon"}, headers=H).status_code == 409
+
+
+def test_two_quick_redates_leave_one_reminder(db):
+    """The page fired two change events for one pick and filed two 9am pushes (2026-10-20)."""
+    import threading
+    g = approved(db)
+    sid = g["steps"][0]["id"]
+    threads = [threading.Thread(target=goals_store.set_due, args=(sid, day(4))) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(reminders_store.pending()) == 1

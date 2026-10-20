@@ -60,6 +60,14 @@ def _conn():
     return c
 
 
+def _write():
+    """A connection holding the write lock before its first read. Two quick taps on the page
+    otherwise both read "no reminder yet" and both file one (seen 2026-10-20)."""
+    c = _conn()
+    c.execute("BEGIN IMMEDIATE")
+    return c
+
+
 def _today() -> dt.date:
     return dt.date.today()
 
@@ -194,7 +202,7 @@ def approve(gid: int, title: str, steps: list[dict], why: str = "",
     title = _clean_title(title)
     final = _clean_steps(steps)
     target = _clean_date(target)
-    with _conn() as c:
+    with _write() as c:
         row = c.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
         if row is None:
             raise LookupError(f"No goal #{gid}.")
@@ -220,7 +228,7 @@ def approve(gid: int, title: str, steps: list[dict], why: str = "",
 
 def discard(gid: int) -> dict:
     """Drop a draft. The row stays (status dropped) so discarded plans count in the record."""
-    with _conn() as c:
+    with _write() as c:
         row = c.execute("SELECT status FROM goals WHERE id=?", (gid,)).fetchone()
         if row is None:
             raise LookupError(f"No goal #{gid}.")
@@ -245,7 +253,7 @@ def _step(c, sid: int):
 
 def mark_done(sid: int) -> dict:
     """Tick a step: stamp it, cancel its pending push, log it, close the goal on the last one."""
-    with _conn() as c:
+    with _write() as c:
         s = _step(c, sid)
         if s["goal_status"] not in ("active", "done"):
             raise ValueError("That goal is not active.")
@@ -267,7 +275,7 @@ def mark_done(sid: int) -> dict:
 
 def undo_done(sid: int) -> dict:
     """Untick a step (a wrong tap or a wrong guess from chat). Re-arms its push if still ahead."""
-    with _conn() as c:
+    with _write() as c:
         s = _step(c, sid)
         if not s["done_at"]:
             return {"step": dict(s), "already": True}
@@ -277,6 +285,25 @@ def undo_done(sid: int) -> dict:
         _schedule(c, s["goal_title"], sid, s["text"], s["due"])
     store.log_event("goal", subject=s["goal_title"], subject_kind="goal", action="step reopened",
                     detail=s["text"])
+    return {"step": dict(s), "already": False}
+
+
+def set_due(sid: int, due: str | None) -> dict:
+    """A person dates or redates an open step on an approved goal: the old push is cancelled
+    and a new 9am one filed. The model has no path here; plans change by a person's hand."""
+    due = _clean_date(due)
+    with _write() as c:
+        s = _step(c, sid)
+        if s["goal_status"] != "active":
+            raise ValueError("Only steps of an active goal can be redated.")
+        if s["done_at"]:
+            raise ValueError("That step is already done.")
+        if s["reminder_id"]:
+            _cancel_reminder(c, s["reminder_id"])
+        c.execute("UPDATE goal_steps SET due=?,reminder_id=NULL WHERE id=?", (due, sid))
+        _schedule(c, s["goal_title"], sid, s["text"], due)
+    store.log_event("goal", subject=s["goal_title"], subject_kind="goal", action="step redated",
+                    detail=f"{s['text']}: {s['due'] or 'no date'} -> {due or 'no date'}")
     return {"step": dict(s), "already": False}
 
 

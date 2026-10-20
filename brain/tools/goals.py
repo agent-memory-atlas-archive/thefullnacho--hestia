@@ -119,6 +119,11 @@ def execute(action: str, title: str | None = None, why: str | None = None,
         lines = "\n".join(_line(s) for s in g["steps"])
         note = ("\nLeft undated (not a date I could read): " + "; ".join(f"'{u}'" for u in unread) +
                 ". Set dates on the Goals page if they need one.") if unread else ""
+        if not any(s["due"] for s in g["steps"]):
+            # The first real plan (2026-10-20) came back with no dates: nothing would remind
+            # anyone. Say so, so the model can tell the user or propose again with dates.
+            note += ("\nNo step has a date, so no reminders will fire and nothing can go overdue. "
+                     "Tell the user, and suggest dating at least the first steps on the Goals page.")
         return (f"Drafted goal #{g['id']} for review: {g['title']}, {len(g['steps'])} steps.\n"
                 f"{lines}{note}\nNothing is scheduled until it is approved on the Goals page (/app#goals).")
     if action == "list":

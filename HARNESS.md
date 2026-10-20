@@ -398,7 +398,10 @@ date comparison in the morning briefing and on Today.
 
 The model may tick a step from chat ("finally ordered the heater"): `goals done` matches the
 user's words against open steps, asks when two match equally, and its receipt says it can be
-undone on the page. The router offers the `goals` tool when a message shares two meaningful
+undone on the page. A person can date, redate or undate any open step of an active goal from
+the page (its 9am push is moved with it); the model cannot. The tool warns the model when a
+draft has no dates at all, since an undated plan never reminds or goes overdue. Goal writes
+take the write lock before reading, so two quick taps cannot file two reminders. The router offers the `goals` tool when a message shares two meaningful
 words with an open step, so a finished step needs no keyword. The model cannot edit an
 approved plan; a re-plan is a new draft. Page writes need the `X-Hestia-Goals` header and a
 same-origin JSON body, like recipe approval. The MCP server exposes `list` and `show` only.

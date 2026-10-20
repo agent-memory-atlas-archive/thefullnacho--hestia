@@ -42,13 +42,16 @@
     const now = today();
     const rows = g.steps.map(s => {
       const late = !s.done_at && s.due && s.due < now;
-      const when = s.done_at ? 'done' : s.due ? (late ? 'overdue · ' : '') + nice(s.due) : '';
+      // An open step's date is a picker: a person can date or redate it here after approval.
+      const when = s.done_at ? '<span class="when">done</span>' :
+        (late ? '<span class="when late">overdue</span>' : '') +
+        '<input type="date" class="g-when' + (late ? ' late' : '') + (s.due ? '' : ' unset') + '" data-due="' + s.id +
+        '" value="' + esc(s.due || '') + '" aria-label="Date for: ' + esc(s.text) + '">';
       return '<li class="g-step' + (s.done_at ? ' is-done' : '') + '">' +
         '<button class="g-check" data-tick="' + s.id + '" data-done="' + (s.done_at ? 1 : 0) + '" aria-pressed="' +
         (s.done_at ? 'true' : 'false') + '" aria-label="' + (s.done_at ? 'Mark not done: ' : 'Mark done: ') + esc(s.text) + '">' +
         (s.done_at ? ICONS.check : '') + '</button>' +
-        '<span class="g-text">' + esc(s.text) + '</span>' +
-        '<span class="when' + (late ? ' late' : '') + '">' + esc(when) + '</span></li>';
+        '<span class="g-text">' + esc(s.text) + '</span>' + when + '</li>';
     }).join('');
     return card(
       '<h2>' + esc(g.title) + '</h2>' +
@@ -130,6 +133,20 @@
     }
   }
 
+  async function onDate(e) {
+    const input = e.target.closest('input[data-due]');
+    if (!input) return;
+    input.disabled = true;
+    try {
+      const j = await post('/api/goals/steps/' + input.dataset.due + '/due', { due: input.value || null });
+      data.goals = data.goals.map(g => g.id === j.goal.id ? j.goal : g);
+      render();
+    } catch (err) {
+      input.disabled = false;
+      alert(err.message);
+    }
+  }
+
   function hydrateIcons(root) {
     root.querySelectorAll('[data-icon]').forEach(el => { if (!el.innerHTML.trim()) el.innerHTML = ICONS[el.dataset.icon] || ''; });
   }
@@ -151,5 +168,6 @@
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('goalsRefresh').addEventListener('click', refresh);
     body().addEventListener('click', onClick);
+    body().addEventListener('change', onDate);
   });
 })();

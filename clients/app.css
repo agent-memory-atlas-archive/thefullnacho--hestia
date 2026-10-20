@@ -292,6 +292,14 @@ dialog input, dialog select {
 }
 .g-step.is-done .g-check { background: var(--accent); border-color: var(--accent); }
 .g-step.is-done .g-text { color: var(--muted); text-decoration: line-through; }
+.g-step .when { margin-left: auto; }
+.g-when {
+  margin-left: auto; flex-shrink: 0; background: transparent; color: var(--muted); font: inherit;
+  font-size: 12px; border: 1px solid var(--line-subtle); border-radius: 8px; padding: 4px 6px;
+}
+.g-step .when + .g-when { margin-left: 6px; }
+.g-when.late { color: var(--bad-text); border-color: var(--bad-line); }
+.g-when.unset { color: var(--accent); border-color: var(--accent-line); }
 @media (max-width: 420px) { .g-edit li { flex-wrap: wrap; } .g-edit li .g-date { width: auto; flex: 1; } }
 
 /* --- Library: picks --- */

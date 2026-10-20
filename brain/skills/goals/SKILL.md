@@ -24,6 +24,8 @@ reminders on each step's day, overdue in the morning briefing, the tick when it'
   verb: "Order the greenhouse heater", not "Heating".
 - Make the first step small enough to do this week. Momentum beats a perfect plan.
 - Put buying, ordering and waiting-on-delivery steps early; they gate everything after them.
+- Date at least the first two steps, even with no deadline: an undated step never reminds
+  anyone and never shows as overdue, so an all-undated plan quietly does nothing.
 - Date the steps when the user gave a deadline: spread them back from the target, leave slack
   before it, and pass dates as phrases ("Nov 8", "in 2 weeks"). Undated is fine for open goals.
 - A habit ("get into a practice of ...") is a goal whose steps set the routine up: decide when
