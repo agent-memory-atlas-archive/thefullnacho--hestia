@@ -14,16 +14,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest  # noqa: E402
 
+import config  # noqa: E402
 import memory_store  # noqa: E402
 import note_taker  # noqa: E402
 import records_store  # noqa: E402
 
 
-@pytest.fixture
-def db(tmp_path, monkeypatch):
-    """A fresh, empty records DB for this test. Schema is created lazily on first _conn."""
+@pytest.fixture(autouse=True)
+def _scratch_db(tmp_path, monkeypatch):
+    """Every test gets a throwaway DB, asked for or not. Fifteen tests that never took `db`
+    (the agent loop, the claim guard, prompt building, shopping) reached the store through
+    the prompt's entity roster or the shopping harvest check, and opened data/hestia.db at
+    the default path: the live DB when the suite runs in the live checkout (found 2026-10-20).
+    clips.py reads config.DB_PATH directly, so both globals move."""
     path = tmp_path / "hestia.db"
     monkeypatch.setattr(records_store, "DB_PATH", path)
+    monkeypatch.setattr(config, "DB_PATH", path)
+    return path
+
+
+@pytest.fixture
+def db(_scratch_db):
+    """A fresh, empty records DB for this test. Schema is created lazily on first _conn."""
     return records_store
 
 

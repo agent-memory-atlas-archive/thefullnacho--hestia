@@ -16,10 +16,13 @@ is public. Those live in the operator's private notes.
 - **In flight:** nothing in code. The goals feature is collecting real use.
 - **Watch:** the first Gemma-written nightly journal (23:45 tonight) and tomorrow's 07:10
   briefing, now with no model swap in between. `hestiactl logs brain | grep CONTEXT` for a week.
-- **Open, found today:** the test suite reads the store at the default DB path (empty tables
-  only); find the test that skips the `db` fixture.
-- **Next concrete action:** find and fix that test, so the suite can run in the live checkout
-  without touching `data/hestia.db`.
+- **Fixed after close:** the suite no longer touches `data/hestia.db`. It was not one test:
+  fifteen (agent loop, claim guard, prompt building, shopping) reached the store through the
+  prompt's entity roster or the shopping harvest check without the `db` fixture. `conftest.py`
+  now gives every test a scratch DB (both `records_store.DB_PATH` and `config.DB_PATH`, which
+  `clips.py` reads directly), and `test_isolation.py` fails if that guard goes. A per-test probe
+  found no other writes to `data/`, `memory/` or `~/.local/state/hestia/`.
+- **Next concrete action:** read the first Gemma nightly journal and tomorrow's briefing.
 
 [non-production] Living-room TV security update pass (USB debugging on, `update-pass.sh`, accept
 the update on the TV, debugging off). Sent to the ~/me session for the queue.
