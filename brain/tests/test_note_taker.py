@@ -114,3 +114,45 @@ def test_run_never_raises_on_extract_failure(mem, inbox):
     def boom(_t):
         raise RuntimeError("ollama down")
     assert inbox.run(_MSGS, "Got it.", extract_fn=boom) == []
+
+
+# ----- precision: what is not a household fact (2026-10-20: 24 of 29 proposals were junk) ----
+
+import pytest  # noqa: E402
+
+import note_taker  # noqa: E402
+
+
+@pytest.mark.parametrize("content", [
+    "The user uses Home Assistant for home automation.",
+    "The user is tuning the backend prompts for their AI assistant.",
+    "The assistant is tasked with curating the feed.",
+    "The user wants alerts when the freezer gets warm.",
+    "The user intends to repaint the shed.",
+    "The user is currently transitioning the beds to winter mode.",
+    "The user values technical depth in how the system handles failures.",
+    "The user needs to call the vet on Monday.",
+])
+def test_rejected_drops_system_talk_wishes_and_work_in_progress(content):
+    assert note_taker.rejected(content)
+
+
+@pytest.mark.parametrize("content", [
+    "The household keeps three hens in the north coop.",
+    "The user prefers that the assistant admits uncertainty instead of sounding sure.",
+    "The user is interested in woodworking and hand tools.",
+    "The garden irrigation system uses drip lines on the raised beds.",
+    "Trash goes out on Tuesday.",
+    "The user plans meals on Sundays.",
+])
+def test_rejected_keeps_household_facts_and_how_they_like_to_be_spoken_to(content):
+    assert note_taker.rejected(content) is None
+
+
+def test_parse_drops_rejected_before_the_cap(inbox):
+    raw = ('[{"content": "The user wants a dashboard for the barn."},'
+           ' {"content": "The user uses Home Assistant."},'
+           ' {"content": "The barn has a 40 amp subpanel."},'
+           ' {"content": "The well pump is in the basement."}]')
+    assert [p["content"] for p in inbox.parse_proposals(raw)] == [
+        "The barn has a 40 amp subpanel.", "The well pump is in the basement."]

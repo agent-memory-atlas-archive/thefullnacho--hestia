@@ -196,6 +196,17 @@ extraction. `HESTIA_NOTETAKER_OLLAMA` can select a separate local inference serv
 with `HESTIA_NOTETAKER_MODEL` selecting its model. Sharing the foreground GPU can
 still add contention after a note job has started; no runtime GPU settings are changed.
 
+Precision is enforced in code as well as the prompt. On 2026-10-20 the note-taker proposed 29
+facts in a day and about 1 in 6 was worth keeping: the rest described the assistant's own
+system, phrased requests as facts ("the user wants alerts when..."), or captured work in
+progress. `note_taker.rejected()` drops those before review (a preference about how the
+household wants to be spoken to is kept even when it mentions the assistant), the prompt says
+an empty answer is normal, and an exchange yields at most 2 proposals. Replaying that day's
+29 exchanges: 37 proposals after deduplication with the old prompt, about a dozen with the new,
+about half of them worth keeping. Requests a conversation surfaces belong in code or a goal,
+not in memory. The `confidence` the model writes into a proposal is its own guess, not a
+measurement: that day it was 0.8 to 1.0 on every proposal, junk included.
+
 A simple single light on/off command returns its verified tool receipt after one
 model round; the receipt names the light by its Home Assistant friendly name, since it
 is spoken aloud by the voice clients. Successful mixed informational/action requests retain the informational

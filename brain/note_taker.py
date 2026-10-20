@@ -33,19 +33,25 @@ TIMEOUT = float(os.environ.get("HESTIA_NOTETAKER_TIMEOUT", "30"))
 INBOX_DIR = config.INBOX_DIR
 
 _VALID_TYPES = memory_store.TYPES
-_MAX_PROPOSALS = 5          # a single exchange rarely yields more than a couple real facts
+_MAX_PROPOSALS = 2          # most exchanges hold no durable fact; a good one holds one or two
 _MIN_USER_CHARS = 12        # skip trivial "turn on the light"-class turns
 
-EXTRACT_PROMPT = """You are the memory note-taker for a private home assistant. Read the conversation below and extract ONLY durable, user-specific facts worth remembering for months — stable preferences, household facts, routines, people, or work facts the user stated or clearly implied.
+EXTRACT_PROMPT = """You are the memory note-taker for a private home assistant. Read the conversation below and decide whether it revealed a durable fact about this household worth remembering for months: who lives here, their animals, home, garden, equipment, routines, and lasting tastes.
 
-STRICT RULES:
-- Extract facts ABOUT THE USER / their home / their world — never about the assistant, the conversation, or how a tool works.
-- Do NOT record transient or live state (whether a light is on, today's weather, what is downloading right now, the current time). That is queried live, never remembered.
-- Do NOT record questions, one-off requests, or things the assistant merely did this turn.
-- Only include something if a reasonable person would still want it remembered next month.
-- If nothing qualifies, return an empty array. Prefer recording nothing over noise.
+Most conversations reveal nothing new. Returning [] is the normal, correct answer.
 
-Return ONLY a JSON array, no prose. Each item:
+Record ONLY:
+- facts about the people, animals, home, garden, belongings and routines of this household;
+- lasting tastes and preferences, including how they like to be spoken to.
+
+Never record (these are the usual mistakes):
+- anything about the assistant itself, its tools, prompts, logs, models or the software it runs on ("The user uses Home Assistant", "The user is tuning the assistant");
+- wishes, requests or plans ("The user wants alerts when...", "The user intends to post..."): those are tasks for the assistant, not facts;
+- what someone is in the middle of doing ("The user is currently working on...", "is transitioning to..."): it will be stale soon;
+- live state (a light, today's weather, a download), questions, and anything the assistant did this turn;
+- restatements of a fact in different words.
+
+At most 2 facts. Return ONLY a JSON array, no prose. Each item:
   {"content": "<one self-contained fact, written so it stands alone later>",
    "type": "<one of: person, household, preference, routine, work, reference, episodic>",
    "confidence": <0.0-1.0>}
@@ -61,6 +67,39 @@ def _transcript(messages: list[dict], answer: str, max_turns: int = 6) -> str:
     if not lines or turns[-1].get("role") != "assistant" or turns[-1].get("content") != answer:
         lines.append(f"ASSISTANT: {answer}")
     return "\n".join(lines)
+
+
+# The prompt alone did not hold: on 2026-10-20 Gemma proposed 29 facts in a day and 24 were
+# junk, mostly the assistant describing its own system and requests phrased as facts. These
+# patterns are the deterministic backstop. Tuned on that day's labeled proposals (19 of 24
+# junk dropped, all 5 keepers kept) and checked against the approved memories for false drops.
+_ABOUT_SYSTEM = re.compile(
+    r"\b(?:the assistant|assistant's|AI|LLM|language model|prompts?|backend|inference|"
+    r"tool[- ]calling|Hestia|the system|'?goals'? system|(?:uses|utilizes|runs) (?:Home Assistant|HA)\b|logs?\b)", re.I)
+# How the household wants to be spoken to is a real fact even though it mentions the assistant
+# ("prefers that the assistant admits uncertainty"). Only that: "values technical depth in how
+# the AI works" opens the same way and is still the system describing itself.
+_PREFERENCE = re.compile(
+    r"^(?:the )?user\s+(?:strongly\s+)?(?:prefers|values|prioritizes|likes|dislikes)\b"
+    r"(?=.*\b(?:honest\w*|integrity|accura\w*|uncertain\w*|admits?|tone|brief|brevity|concise|plain|"
+    r"direct|polish\w*|facade|pleasant|flatter\w*)\b)", re.I)
+# Wishes, intentions and work in progress: tasks or soon-stale state, not durable facts.
+# "wants a system / wants the assistant to" is a request; "wants movies in 1080p" is a standing
+# preference and stays. "is interested in <topic>" stays; "is interested in using X" goes.
+_WISH = re.compile(
+    r"\b(?:(?:wants|would like) (?:a|an|the assistant|to|it to|you to|alerts?|notifications?|reminders?|reports?|updates)\b|wishes to|intends|plans to|hopes to|is interested in (?:using|setting up|building|adding)|"
+    r"is planning|is trying|is working on|is developing|is tuning|is currently|is creating|is transitioning|"
+    r"needs? to|needs curation|that need)\b", re.I)
+
+
+def rejected(content: str) -> str | None:
+    """Why a proposed fact is not a household fact ('about the system', 'a wish or task'),
+    or None if it may go to review. Pure; the note-taker's deterministic backstop."""
+    if _ABOUT_SYSTEM.search(content) and not _PREFERENCE.search(content):
+        return "about the system"
+    if _WISH.search(content):
+        return "a wish or task"
+    return None
 
 
 def parse_proposals(raw: str) -> list[dict]:
@@ -104,7 +143,7 @@ def parse_proposals(raw: str) -> list[dict]:
         if len(content) < 3:
             continue
         key = content.lower()
-        if key in seen:
+        if key in seen or rejected(content):
             continue
         seen.add(key)
         mtype = str(item.get("type") or "preference").strip().lower()

@@ -74,6 +74,8 @@ A background note-taker, not an in-loop tax:
 
 1. After an exchange (or on a timer), a **small/cheap model** reads the transcript
    and proposes durable facts: *"User prefers TV downloads in 1080p, not 4K."*
+   Household facts only. Code rejects proposals about the assistant's own system and
+   requests phrased as facts before they reach review (`HARNESS.md`, "Background learning").
 2. Each proposal is **deduped** against existing records (by embedding similarity +
    id), then written or merged. Conflicts flag the old record rather than silently
    overwriting.
