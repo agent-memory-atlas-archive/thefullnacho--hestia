@@ -22,9 +22,12 @@ is public. Those live in the operator's private notes.
 - **On `main` (ad9db4e):** `context_budget.fit()` logs every trim and refusal as
   `[agent] CONTEXT TRIM` / `CONTEXT REFUSED`. The silent trim is what hid the bug. Deployed and
   healthy.
-- **Live config, not changed here:** the nightly journal has no Gemma drop-in, so it still runs
-  `qwen3:14b` and Ollama swaps models at 23:45. The installed brain unit still carries stale
-  Qwen3.8-27B trial lines, masked by the Gemma drop-in. Both are cleanup for the operator's call.
+- **Live config, cleaned up (9f4202e):** the nightly journal had no Gemma drop-in and still ran
+  `qwen3:14b`, swapping models at 23:45. Every model job now defaults to `gemma4:12b` in code, the
+  installed brain unit was reinstalled from the repo (it still carried stale Qwen3.8-27B trial
+  lines), and the three `90-resident-trial.conf` drop-ins are retired. The old unit is kept beside
+  it as `.bak-2026-10-20`. Brain restarted healthy on Gemma; tonight's 23:45 journal is the first
+  on Gemma.
 - **Idea, not built:** household goal planning in Hestia as the proving ground for model agency.
   The model drafts and re-plans; plans pass the approval gate; code owns due dates and nudges;
   a PWA page lists the steps. Boundary decided: goals are household, the operator's Claude queue
