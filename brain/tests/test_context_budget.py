@@ -65,6 +65,22 @@ def test_history_pruning_preserves_current_tool_group():
     assert fitted == messages[:1] + messages[3:]
 
 
+def test_trim_and_refusal_are_logged_and_a_fit_is_quiet():
+    """The bytes-as-tokens bug dropped history silently for six weeks; a trim must say so."""
+    lines = []
+    messages = [{'role': 'system', 'content': 'policy'},
+                {'role': 'user', 'content': 'old' * 200},
+                {'role': 'assistant', 'content': 'old answer'},
+                {'role': 'user', 'content': 'current'}]
+    context_budget.fit(messages, [], 32768, 768, log=lines.append)
+    assert lines == []
+    context_budget.fit(messages, [], 762, 100, log=lines.append)
+    assert len(lines) == 1 and lines[0].startswith('CONTEXT TRIM dropped 2 messages (1 exchanges)')
+    with pytest.raises(ValueError):
+        context_budget.fit([{'role': 'user', 'content': 'x' * 1000}], [], 1000, 200, log=lines.append)
+    assert lines[-1].startswith('CONTEXT REFUSED')
+
+
 def test_budget_counts_tokens_not_bytes():
     """A ~7,000-token prompt (~28 KB) is a quarter of the 32k window; counting bytes as
     tokens refused it (2026-10-16, a garden follow-up). Past the window still refuses."""

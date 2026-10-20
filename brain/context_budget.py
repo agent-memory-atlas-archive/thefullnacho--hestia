@@ -32,16 +32,27 @@ def evidence(label, text, limit=5000):
                        'content': clipped}, ensure_ascii=False)
 
 
-def fit(messages, schemas, num_ctx, output_reserve):
-    """Drop old *whole* exchanges; never create orphaned tool replies."""
+def fit(messages, schemas, num_ctx, output_reserve, log=None):
+    """Drop old *whole* exchanges; never create orphaned tool replies.
+
+    `log` hears about every trim and refusal. A silent trim hid the bytes-as-tokens bug
+    for six weeks (2026-09-06 to 2026-10-16): nearly all history was dropped every turn."""
     messages = list(messages)
+    start = len(messages)
+    exchanges = 0
     budget = num_ctx - output_reserve - 512
-    while tokens(messages) + tokens(schemas) > budget:
+    while (used := tokens(messages) + tokens(schemas)) > budget:
         user_indices = [i for i, m in enumerate(messages) if m.get('role') == 'user']
         if len(user_indices) < 2:
+            if log:
+                log(f"CONTEXT REFUSED est {used} tokens > budget {budget} after dropping {exchanges} exchanges")
             raise ValueError('This request and its required context exceed the context budget. Please shorten it.')
         # Preserve the system message, remove everything before the next user exchange.
         messages = messages[:1] + messages[user_indices[1]:]
+        exchanges += 1
+    if exchanges and log:
+        log(f"CONTEXT TRIM dropped {start - len(messages)} messages ({exchanges} exchanges), "
+            f"est {used} of {budget} tokens")
     return messages
 
 

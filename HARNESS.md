@@ -65,6 +65,9 @@ required context cannot fit, the harness asks for a shorter request instead of s
 dropping instructions. Until 2026-10-16 bytes were counted as tokens, 4x too strict: a
 system prompt with two skills loaded left room for almost no history, and a garden
 follow-up was refused at under a quarter of the window. Backend counts remain authoritative.
+Every trim and refusal is logged (`[agent] CONTEXT TRIM` / `CONTEXT REFUSED` in the brain
+journal) with the messages dropped and the estimate against the budget. The trim used to
+be silent, which is how the bytes-as-tokens bug went unnoticed for six weeks.
 Tool results are bounded by `HESTIA_TOOL_RESULT_BYTES` (default 6000).
 
 The API accepts only bounded text user/assistant/system messages; client-supplied

@@ -760,7 +760,7 @@ async def _agent_loop(messages: list[dict]) -> str:
             _log(f"TURN BUDGET {TURN_BUDGET}s exhausted before step {step}")
             return _TOO_SLOW
         try:
-            convo = context_budget.fit(convo, schemas, NUM_CTX, OUTPUT_TOKENS)
+            convo = context_budget.fit(convo, schemas, NUM_CTX, OUTPUT_TOKENS, log=_log)
         except ValueError as e:
             return str(e)
         try:
