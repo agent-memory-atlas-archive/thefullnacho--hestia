@@ -10,6 +10,9 @@
 #                                    adguard gluetun searxng mqtt | all | gpu
 #   hestiactl logs NAME [-f]         journalctl (local) or docker logs (remote)
 #   hestiactl vpn                    verify the qBittorrent kill-switch
+#   hestiactl gpu ti|5080 [--as WHO] move Ollama to a card, restart it, start the
+#                                    brain, preload the model; exit 75 = card busy
+#   hestiactl gpu where              which card Ollama is pinned to and loaded on
 #
 # "all" means the Hestia-managed pieces: local units + the arr stack. The core
 # stack (Plex, qbit/gluetun, HA, AdGuard, MQTT) predates Hestia and is never
@@ -220,11 +223,101 @@ cmd_vpn() {
   echo "${GRN}● OK${RST} — host $host_ip, VPN egress $vpn_ip (different — kill-switch intact)"
 }
 
+# Ollama's card. The unit pins the 5080. "gpu ti" lays a runtime drop-in over that pin, so a
+# render can have the 5080 without the brain losing its model, and a reboot always lands back
+# on the 5080 because the drop-in lives under /run. Either direction restarts Ollama, starts
+# the brain (a restarted Ollama does not bring a stopped brain back by itself), and preloads
+# the model at the brain's context size so the next turn, or the 7:10 briefing, is warm.
+GPU_DROPIN="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/user.control/hestia-ollama.service.d/50-gpu.conf"
+# The shared box lock other GPU users take. A live lock held by anyone but --as WHO means
+# hands off the 4060 Ti; free VRAM on the target card is checked either way.
+GPU_LOCKFILE="${HESTIA_GPU_LOCKFILE:-/var/tmp/gpu-box.lock}"
+# gemma4:12b at a 32k context, with margin. Measured value goes in the docs, not here.
+GPU_NEED_MIB="${HESTIA_GPU_NEED_MIB:-11000}"
+
+gpu_card() {  # gpu_card <ti|5080> -> "uuid bus_id free_mib", empty if the card is absent
+  local pat
+  case $1 in ti) pat='4060 Ti' ;; 5080) pat='5080' ;; esac
+  nvidia-smi --query-gpu=name,uuid,pci.bus_id,memory.free --format=csv,noheader,nounits 2>/dev/null \
+    | awk -F', ' -v p="$pat" 'index($1, p) { print $2, $3, $4; exit }'
+}
+
+gpu_loaded_on() {  # card name Ollama's runner is resident on, or "none"
+  local bus card
+  bus=$(nvidia-smi --query-compute-apps=gpu_bus_id,process_name --format=csv,noheader 2>/dev/null \
+    | awk -F', ' '$2 ~ /ollama/ { print $1; exit }')
+  [[ -n $bus ]] || { echo none; return; }
+  for card in 5080 ti; do
+    [[ $(gpu_card "$card" | awk '{print $2}') == "$bus" ]] && { echo "$card"; return; }
+  done
+  echo "unknown ($bus)"
+}
+
+cmd_gpu() {
+  local target=${1:-} as=''
+  [[ ${2:-} == --as ]] && as=${3:-}
+  if [[ $target == where ]]; then
+    local pinned=5080
+    [[ -f $GPU_DROPIN ]] && pinned=ti
+    echo "pinned: $pinned   loaded: $(gpu_loaded_on)   ollama: $(systemctl --user is-active hestia-ollama)   brain: $(systemctl --user is-active hestia-brain)"
+    return
+  fi
+  [[ $target == ti || $target == 5080 ]] || die "usage: hestiactl gpu ti|5080 [--as WHO] | where"
+
+  local card uuid bus free
+  card=$(gpu_card "$target")
+  [[ -n $card ]] || die "no $target in nvidia-smi"
+  read -r uuid bus free <<<"$card"
+
+  if [[ $target == ti && -s $GPU_LOCKFILE ]]; then
+    local who what until
+    IFS='|' read -r who what until < "$GPU_LOCKFILE"
+    if (( ${until:-0} > $(date +%s) )) && [[ $who != "$as" ]]; then
+      echo "not moved: GPU lock held by $who ($what) until $(date -d @"$until" '+%a %H:%M')" >&2
+      return 75
+    fi
+  fi
+  if [[ $(gpu_loaded_on) != "$target" ]] && (( free < GPU_NEED_MIB )); then
+    echo "not moved: $target has ${free} MiB free, the model needs ${GPU_NEED_MIB}" >&2
+    return 75
+  fi
+
+  if [[ $target == ti ]]; then
+    mkdir -p "$(dirname "$GPU_DROPIN")"
+    printf '[Service]\nEnvironment=CUDA_VISIBLE_DEVICES=%s\n' "$uuid" > "$GPU_DROPIN"
+  else
+    rm -f "$GPU_DROPIN"
+  fi
+  systemctl --user daemon-reload
+  echo "systemctl --user restart hestia-ollama"; systemctl --user restart hestia-ollama
+  echo "systemctl --user start hestia-brain";    systemctl --user start hestia-brain
+
+  local env model ctx i
+  env=$(systemctl --user show hestia-brain -p Environment --value)
+  model=$(grep -o 'HESTIA_MODEL=[^ ]*' <<<"$env" | tail -1 | cut -d= -f2)
+  ctx=$(grep -o 'HESTIA_NUM_CTX=[^ ]*' <<<"$env" | tail -1 | cut -d= -f2)
+  for i in $(seq 30); do curl -fsS --max-time 2 http://127.0.0.1:11434/api/version >/dev/null 2>&1 && break; sleep 1; done
+  echo "preloading ${model:-?} at num_ctx ${ctx:-32768}"
+  curl -fsS --max-time 300 http://127.0.0.1:11434/api/generate \
+    -d "{\"model\":\"${model}\",\"keep_alive\":-1,\"options\":{\"num_ctx\":${ctx:-32768}}}" >/dev/null \
+    || echo "${YLW}preload failed; the first turn will cold-start${RST}" >&2
+
+  local landed
+  landed=$(gpu_loaded_on)
+  if [[ $landed == "$target" ]]; then
+    echo "${GRN}●${RST} ollama on $target, brain $(systemctl --user is-active hestia-brain)"
+  else
+    echo "${RED}●${RST} asked for $target, model is loaded on: $landed" >&2
+    return 1
+  fi
+}
+
 case ${1:-} in
   status)            cmd_status ;;
+  gpu)               shift; cmd_gpu "$@" ;;
   health)            cmd_health ;;
   up|down|restart)   cmd_power "$@" ;;
   logs)              shift; cmd_logs "$@" ;;
   vpn)               cmd_vpn ;;
-  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

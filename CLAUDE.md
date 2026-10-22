@@ -23,6 +23,7 @@ deploy/hestiactl status            # whole estate, one screen
 deploy/hestiactl health            # raw brain /health JSON
 deploy/hestiactl logs brain -f     # journalctl or docker logs, by name
 deploy/hestiactl vpn               # verify the qBittorrent kill-switch
+deploy/hestiactl gpu ti|5080|where # move Ollama between cards (renders take the 5080)
 ```
 
 Local services are `systemd --user` units (`deploy/systemd/`). Everything else is docker on

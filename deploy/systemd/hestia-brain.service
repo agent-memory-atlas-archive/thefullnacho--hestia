@@ -25,4 +25,7 @@ Restart=on-failure
 RestartSec=3
 
 [Install]
-WantedBy=default.target
+# Also wanted by Ollama: starting Ollama (by hand, or after a render frees the 5080) brings a
+# stopped brain back with it. Stopping Ollama leaves the brain up, so the model-free surfaces
+# (/today, /nfc, the forms) keep working through a render.
+WantedBy=default.target hestia-ollama.service

@@ -7,6 +7,28 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-21 - Ollama can move to the 4060 Ti while a render holds the 5080
+
+- **The 4060 Ti is back in the box** and voice (`hestia-whisper`, `hestia-chatterbox`) is
+  enabled and running on it again. The 2026-10-20 entry below is superseded.
+- **`hestiactl gpu ti|5080|where`:** a runtime drop-in over the unit's 5080 pin (under `/run`,
+  so a reboot always lands back on the 5080), then restart Ollama, start the brain, preload
+  the model at the brain's `num_ctx`, and confirm it is resident on the card asked for. It
+  refuses with exit 75 if the shared GPU lock is held by anyone but `--as WHO`, or the target
+  card has under 11000 MiB free (`HESTIA_GPU_NEED_MIB`). Round-trip tested live: gemma4:12b at
+  32k is 8.0 GiB resident on the Ti, next to the voice stack.
+- **Why:** the overnight render stopped Ollama to free the 5080, so the 7:10 briefing lost its
+  model on render nights. The render job will call `gpu ti` and `gpu 5080` instead.
+- **The brain is now wanted by Ollama** (`WantedBy=... hestia-ollama.service`), so starting
+  Ollama brings a stopped brain back. On 2026-10-21 both were stopped by hand and the brain
+  stayed down 8 hours because it only had `Wants=` on Ollama. Stopping Ollama still leaves the
+  brain up, so `/today` and the capture forms survive a render.
+
+[non-production] Run `systemctl --user add-wants hestia-ollama.service hestia-brain.service`
+once on the GPU box (the live half of the brain fix; blocked from a session).
+
+---
+
 ## 2026-10-20 - the 4060 Ti is out of the GPU box for a while; voice is down
 
 - **Voice off on purpose:** `hestia-whisper` and `hestia-chatterbox` are stopped and disabled
