@@ -7,6 +7,18 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-22 - utterance review pushed back to collect more speech
+
+- The log holds 90 utterances, 75 app and 15 voice. Voice stops at 2026-10-19 because the
+  4060 Ti was out; it is back now. Fifteen spoken lines are too few to split into calibration
+  and test halves, so the log stays on through a couple more days of voice commands.
+
+[non-production] About 2026-10-25: review the utterance dump (`cd brain && uv run python
+utterance_store.py dump --since 2026-10-15`), read each one aloud, flag any that don't sound
+like real speech; then turn the log off (delete the drop-in, daemon-reload, restart).
+
+---
+
 ## 2026-10-21 - Ollama can move to the 4060 Ti while a render holds the 5080
 
 - **The 4060 Ti is back in the box** and voice (`hestia-whisper`, `hestia-chatterbox`) is
