@@ -24,8 +24,8 @@ is public. Those live in the operator's private notes.
   stayed down 8 hours because it only had `Wants=` on Ollama. Stopping Ollama still leaves the
   brain up, so `/today` and the capture forms survive a render.
 
-[non-production] Run `systemctl --user add-wants hestia-ollama.service hestia-brain.service`
-once on the GPU box (the live half of the brain fix; blocked from a session).
+- **Live half done the same night:** `systemctl --user add-wants hestia-ollama.service
+  hestia-brain.service`, verified (`Wants=hestia-brain.service` on Ollama).
 
 ---
 
