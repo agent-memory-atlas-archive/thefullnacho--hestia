@@ -18,7 +18,9 @@ is public. Those live in the operator's private notes.
   card has under 11000 MiB free (`HESTIA_GPU_NEED_MIB`). Round-trip tested live: gemma4:12b at
   32k is 8.0 GiB resident on the Ti, next to the voice stack.
 - **Why:** the overnight render stopped Ollama to free the 5080, so the 7:10 briefing lost its
-  model on render nights. The render job will call `gpu ti` and `gpu 5080` instead.
+  model on render nights. **Decided the same night: renders keep stopping Ollama**, so the
+  Ti stays whole for Dawn and a missed briefing on render nights is accepted. The helper stays
+  for manual use; the render job does not call it.
 - **The brain is now wanted by Ollama** (`WantedBy=... hestia-ollama.service`), so starting
   Ollama brings a stopped brain back. On 2026-10-21 both were stopped by hand and the brain
   stayed down 8 hours because it only had `Wants=` on Ollama. Stopping Ollama still leaves the
