@@ -24,7 +24,8 @@ is public. Those live in the operator's private notes.
 - **Medication rule added** to LIBRARY-DESIGN.md: cite, never advise on doses or stopping.
 
 [non-production] Write 30 real questions in `data/library/questions.md` (gitignored), each with
-`-> document title` it should find, 3 or 4 marked `-> none`; phrased as you'd say them, written
+`-> document title` it should find (`A or B` = either is a hit, `A | B` = both needed, scored
+as found-any and found-all), 3 or 4 marked `-> none`; phrased as you'd say them, written
 without looking at search results. Focus work. Then a session scores keyword vs hybrid on them.
 
 ---
