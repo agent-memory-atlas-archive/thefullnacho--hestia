@@ -23,8 +23,9 @@ is public. Those live in the operator's private notes.
   sheet (powder vs powdery), the case vectors are for. The eval decides.
 - **Medication rule added** to LIBRARY-DESIGN.md: cite, never advise on doses or stopping.
 
-[non-production] Write 30 real garden questions, each with the passage a good answer needs.
-Focus work; before any search code exists.
+[non-production] Write 30 real questions in `data/library/questions.md` (gitignored), each with
+`-> document title` it should find, 3 or 4 marked `-> none`; phrased as you'd say them, written
+without looking at search results. Focus work. Then a session scores keyword vs hybrid on them.
 
 ---
 
