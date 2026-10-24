@@ -98,6 +98,27 @@ The bundled browser and HA clients retain request keys for transport retries wit
 their current session. HA continues to use non-streaming replies; API streaming
 clients, the chat app among them, opt in with `stream: true`.
 
+### Prompt layout and the prompt cache, 2026-10-24
+
+Turns spend a median 1.7 seconds (about 4 on long chats) re-reading the prompt, because
+the system message carries the clock, the turn's skills, memories and live readings ahead
+of the history, so Ollama's prompt cache never covers the thread. `HESTIA_PROMPT_LAYOUT=tail`
+keeps the system message to the fixed `SYSTEM_PROMPT` and carries the turn's context in
+front of the latest user message instead. Default stays `head`.
+
+Measured on gemma4:12b (`eval_models.py`, 5 repeats, three new cases for moved context):
+both layouts pass 55/55, and tail saves only 0.1 to 0.2 seconds of prompt reading per turn.
+On a 25-exchange thread both re-read about 7,000 tokens on the next turn. The cause is
+Gemma 4's sliding-window attention (`n_swa = 1024`): llama.cpp can rewind its cache only to
+checkpoints saved near the end of the previous prompt, and the turn's context block (about
+4,000 tokens) moves the divergence point earlier than any checkpoint. Exact repeats and pure
+appends do hit the cache (0.01 s). Also tried and dropped: sending every tool definition on
+every turn so the tool block stays fixed (no gain), and llama.cpp's full-size sliding-window
+cache via `LLAMA_ARG_SWA_FULL=1` (13.4 GB resident, 900 MiB free, and 7 to 8 s per turn).
+The remaining lever is replaying each turn's context in history so every request is a pure
+append, which trades history depth and adds stale context; not tried. The layout switch
+stays for a resident model without sliding windows.
+
 ## Threads and live events
 
 Conversation history lives on the brain, not in the client. `threads_store.py` keeps it

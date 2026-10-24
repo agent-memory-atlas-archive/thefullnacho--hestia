@@ -40,6 +40,13 @@ CASES = [
      lambda text, s: s["light"] == "off" and "corgi" in text.lower()),
     ("follow-up", ["Turn off the kitchen lights.", "Turn them back on."],
      lambda text, s: s["light"] == "on" and len(s["calls"]) >= 2),
+    # Context that the "tail" prompt layout moves from the system message to the latest turn.
+    ("soil read", ["Is the carrot bed dry?"],
+     lambda text, s: "25" in text),
+    ("today's date", ["What day of the week is it?"],
+     lambda text, s: time.strftime("%A").lower() in text.lower()),
+    ("grounded follow-up", ["What breed is Biscuit?", "And which bag has the good coffee?"],
+     lambda text, s: "orange" in text.lower()),
     ("unavailable backend", ["Search the web for today's technology news."],
      lambda text, s: any(w in text.lower() for w in ("unavailable", "disabled", "couldn't", "can't", "cannot", "unable", "error"))),
 ]

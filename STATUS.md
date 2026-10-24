@@ -7,6 +7,17 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-24 - prompt cache: measured, and Gemma's sliding window caps the win
+
+- Turns re-read the whole prompt every time (median 1.7s, about 4s on long chats). Moving the
+  changing context to the latest message (`HESTIA_PROMPT_LAYOUT=tail`) keeps accuracy (55/55
+  both ways) but saves only 0.1-0.2s on gemma4:12b: sliding-window attention lets Ollama
+  rewind only to checkpoints near the end of the last prompt. Default stays `head`; details
+  and the two dead ends (fixed tool list, full SWA cache) in HARNESS.md. `eval_models.py`
+  gained soil, date and grounded follow-up cases.
+
+---
+
 ## 2026-10-23 - the library: grounded answers from extension publications, designed
 
 - `LIBRARY-DESIGN.md`: hand-picked extension PDFs, searched in code (keyword, then hybrid with

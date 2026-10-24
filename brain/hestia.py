@@ -91,6 +91,29 @@ TOOL_BUDGET = float(os.environ.get("HESTIA_TOOL_BUDGET", "20"))
 TOOL_WORKERS = max(1, int(os.environ.get("HESTIA_TOOL_WORKERS", "8")))
 # qwen3 thinking mode: off by default (fast, no eval gain). HESTIA_THINK=1 to enable.
 THINK = os.environ.get("HESTIA_THINK", "0") not in ("0", "", "false", "False")
+# Where this turn's changing context goes. "head" (default): the whole assembled prompt is the
+# system message, so the clock, skills and readings sit ahead of the history and Ollama
+# re-reads the thread every turn. "tail": the system message is the fixed SYSTEM_PROMPT and the
+# turn's context rides in front of the latest user message, so the history is a cacheable
+# prefix. Measured 2026-10-24 on gemma4:12b (HARNESS.md, "Prompt layout"): equal accuracy but
+# only 0.1-0.2s saved, because sliding-window attention lets Ollama rewind its cache only to
+# checkpoints near the end of the last prompt. Kept for a model without sliding windows.
+PROMPT_LAYOUT = os.environ.get("HESTIA_PROMPT_LAYOUT", "head")
+_CONTEXT_OPEN = ("[Hestia context for this message: the ACTIVE SKILL, GARDEN, MEMORY and other "
+                 "sections your instructions refer to. Supplied by Hestia, not typed by the user.]")
+_CONTEXT_CLOSE = "[End of Hestia context. The user's message follows.]"
+
+
+def _layout(prompt: str, convo: list[dict]) -> list[dict]:
+    """Place the assembled prompt per PROMPT_LAYOUT. convo is history ending in the user turn."""
+    if PROMPT_LAYOUT != "tail" or not prompt.startswith(SYSTEM_PROMPT) or not convo:
+        return [{"role": "system", "content": prompt}, *convo]
+    context = prompt[len(SYSTEM_PROMPT):].strip()
+    if not context:
+        return [{"role": "system", "content": SYSTEM_PROMPT}, *convo]
+    last = convo[-1]
+    return [{"role": "system", "content": SYSTEM_PROMPT}, *convo[:-1],
+            {**last, "content": f"{_CONTEXT_OPEN}\n{context}\n{_CONTEXT_CLOSE}\n\n{last['content']}"}]
 
 @dataclass
 class TurnTrace:
@@ -753,7 +776,7 @@ async def _agent_loop(messages: list[dict]) -> str:
     routing_text = _routing_text(messages)
     context_started = time.monotonic()
     convo = [m for m in messages if m.get("role") != "system"]
-    convo = [{"role": "system", "content": await _build_system_prompt(routing_text)}, *convo]
+    convo = _layout(await _build_system_prompt(routing_text), convo)
     schemas = _request_schemas(user_text)
     if trace := _trace.get():
         trace.context_seconds = time.monotonic() - context_started
