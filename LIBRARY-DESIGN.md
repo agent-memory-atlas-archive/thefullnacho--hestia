@@ -47,6 +47,10 @@ reasons over what code handed it, and cites it.
   check the current regulations.
 - **No "safe to eat" from retrieval.** For wild edibles and mushrooms, Hestia cites and describes.
   It never clears something as edible on the strength of a passage.
+- **Medication is cited, never advised.** Emergency-preparedness publications cover keeping a
+  supply of life-sustaining medication through an outage. Hestia cites what they say about
+  planning and storage, and sends dose, substitution or stopping questions to a pharmacist or
+  doctor. Code backs this, not just the prompt.
 - **Out-of-region advice is labelled** as such, not presented as local.
 
 ## Network

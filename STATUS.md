@@ -14,8 +14,15 @@ is public. Those live in the operator's private notes.
   can I do with what I have". SECURITY.md records the network shape: downloaded once by hand,
   nothing fetched at question time. Operator agreed to start with a small curated list.
 
-[non-production] Pick 20 to 30 PDFs from the state extension (what's in the ground, soil, the
-pests on record) and drop them in `data/library/`. Focus work.
+- **Corpus in, same day:** the operator picked 56 PDFs (state extension and experiment station:
+  garden, soil, pests, fruit, food storage, two on emergency prep with medication). All have a
+  text layer, about 102k words. `brain/library_store.py` ingests them (running headers, print
+  stamps and reference lists stripped; passages never cross a page) into 556 passages with
+  title, publication number and year, and searches with FTS5. Not wired into the brain yet.
+- **Spot check, not the eval:** "white powder on my squash leaves" misses the powdery mildew
+  sheet (powder vs powdery), the case vectors are for. The eval decides.
+- **Medication rule added** to LIBRARY-DESIGN.md: cite, never advise on doses or stopping.
+
 [non-production] Write 30 real garden questions, each with the passage a good answer needs.
 Focus work; before any search code exists.
 
