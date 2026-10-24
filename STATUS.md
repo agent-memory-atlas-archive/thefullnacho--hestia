@@ -20,8 +20,12 @@ is public. Those live in the operator's private notes.
 - Found on the way: when a tool fails and the model reaches for an out-of-scope tool, the reply
   is a bare "Failed: Error: tool 'search' is not allowed". Predates the library; worth a fix.
 
-[non-production] `systemctl --user restart hestia-brain` to put the library live, then ask the
-app a garden how-to question and check for a cited answer.
+- **Live and verified the same day:** the operator restarted the brain. A garden question was
+  answered from the household's own records with inference, then the library was pulled with
+  the right passages. Watch item: on that first turn the model offered the library instead of
+  calling it (one extra exchange). If that repeats, tell it to check the library in the same
+  turn for how-to and diagnosis questions.
+
 [non-production] Write the `-> none` questions in `data/library/questions.md`; a session then
 picks the not-in-the-library floor with `brain/eval_library.py`.
 
