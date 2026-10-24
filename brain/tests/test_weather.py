@@ -18,6 +18,12 @@ def _row(date: str, lo: float, hi: float = 70.0, rain: float = 0.0, pop: int = 0
     return {"date": date, "lo": lo, "hi": hi, "rain": rain, "pop": pop}
 
 
+@pytest.fixture(autouse=True)
+def _home(monkeypatch):
+    """A made-up homestead, so no test needs Home Assistant or the real location."""
+    monkeypatch.setattr(weather, "_coords", (40.12345678, -75.12345678))
+
+
 @pytest.fixture
 def nws_down(monkeypatch):
     """Every outbound weather.gov call raises, as in a real outage."""
@@ -57,7 +63,7 @@ def test_points_url_is_rounded_and_follows_redirects(monkeypatch):
             return None
 
         def json(self):
-            return {"properties": {"forecastZone": "https://api.weather.gov/zones/forecast/CTZ012"},
+            return {"properties": {"forecastZone": "https://api.weather.gov/zones/forecast/ZZZ012"},
                     "features": []}
 
     def fake_get(url, **kw):
@@ -67,7 +73,7 @@ def test_points_url_is_rounded_and_follows_redirects(monkeypatch):
     monkeypatch.setattr(weather.httpx, "get", fake_get)
     assert weather.active_alerts() == []
     points_url, points_kw = seen[0]
-    assert f"/points/{weather.LAT:.4f},{weather.LON:.4f}" in points_url
+    assert "/points/40.1235,-75.1235" in points_url
     assert len(points_url.split("/points/")[1].split(",")[0].split(".")[1]) == 4
     assert points_kw["follow_redirects"] is True
     assert all(kw["follow_redirects"] is True for _, kw in seen)
@@ -170,3 +176,27 @@ def test_rain_text_ignores_trace():
     assert "No meaningful rain" in weather._rain_text(trace)
     real = [_row("2026-04-21", 50.0, rain=0.4, pop=80)]
     assert "0.40 in" in weather._rain_text(real)
+
+
+def test_coords_from_env_else_home_assistant(monkeypatch):
+    monkeypatch.setattr(weather, "_coords", None)
+    monkeypatch.setenv("HESTIA_LAT", "1.5")
+    monkeypatch.setenv("HESTIA_LON", "-2.5")
+    assert weather.coords() == (1.5, -2.5)
+
+    monkeypatch.setattr(weather, "_coords", None)
+    monkeypatch.delenv("HESTIA_LAT")
+    monkeypatch.delenv("HESTIA_LON")
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"latitude": 3.25, "longitude": -4.75}
+
+    asked = []
+    monkeypatch.setattr(weather.httpx, "get", lambda url, **kw: asked.append(url) or _Resp())
+    assert weather.coords() == (3.25, -4.75)
+    assert weather.coords() == (3.25, -4.75) and len(asked) == 1   # looked up once
+    assert asked[0].endswith("/api/config")

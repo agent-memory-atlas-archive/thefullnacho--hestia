@@ -10,6 +10,9 @@ keyless public APIs, the sanctioned exception to "nothing phones home" (see CLAU
 
 Ported from the user's homesteader-labs `weatherApi.ts` / `FrostGuardAlert.tsx`. The
 forecast helpers here are shared with the proactive garden-watch job.
+
+The homestead's coordinates come from HESTIA_LAT/HESTIA_LON, else from Home Assistant's own
+location (/api/config). There is no default in the code on purpose: this repo is public.
 """
 from __future__ import annotations
 
@@ -18,8 +21,7 @@ import os
 
 import httpx
 
-LAT = float(os.environ.get("HESTIA_LAT", "41.3311594"))
-LON = float(os.environ.get("HESTIA_LON", "-72.154657"))
+_coords: tuple[float, float] | None = None
 _UA = "Hestia/0.4 (+local home agent)"
 OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
 
@@ -63,11 +65,32 @@ SCHEMA = {
 
 # ----- data fetch (shared with the garden-watch job) ------------------------
 
+def coords() -> tuple[float, float]:
+    """(lat, lon) of the homestead: the env pair if set, else Home Assistant's location,
+    looked up once per process. Raises when neither is available, which every caller
+    already treats like a weather outage."""
+    global _coords
+    if _coords:
+        return _coords
+    lat, lon = os.environ.get("HESTIA_LAT"), os.environ.get("HESTIA_LON")
+    if lat and lon:
+        _coords = (float(lat), float(lon))
+        return _coords
+    ha = os.environ.get("HA_URL", "http://hl-relay:8124").rstrip("/")
+    r = httpx.get(f"{ha}/api/config", timeout=10,
+                  headers={"Authorization": f"Bearer {os.environ.get('HA_TOKEN', '')}"})
+    r.raise_for_status()
+    cfg = r.json()
+    _coords = (float(cfg["latitude"]), float(cfg["longitude"]))
+    return _coords
+
+
 def forecast_days(days: int = 7) -> list[dict]:
     """Daily forecast rows: date, hi, lo (°F), rain (inch QPF), pop (% max)."""
     days = max(1, min(16, days))
+    lat, lon = coords()
     params = {
-        "latitude": LAT, "longitude": LON,
+        "latitude": lat, "longitude": lon,
         "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max",
         "temperature_unit": "fahrenheit", "precipitation_unit": "inch",
         "timezone": "auto", "forecast_days": days,
@@ -86,8 +109,9 @@ def history_days(start: str, end: str) -> list[dict]:
     """Observed daily rows (same shape as forecast_days, minus pop) from the Open-Meteo
     archive — used by pest-watch to back-fill GDD from the season's biofix. The archive
     lags ~2 days behind realtime; rows with null temps (too recent) are dropped."""
+    lat, lon = coords()
     params = {
-        "latitude": LAT, "longitude": LON,
+        "latitude": lat, "longitude": lon,
         "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum",
         "temperature_unit": "fahrenheit", "precipitation_unit": "inch",
         "timezone": "auto", "start_date": start, "end_date": end,
@@ -118,7 +142,8 @@ def active_alerts() -> list[dict] | None:
         # reporting "no active alerts" (2026-08-17). Round, and follow anyway: the host is
         # fixed, so following is safe here in a way it is not for the model-directed
         # `search` fetch.
-        pt = httpx.get(f"https://api.weather.gov/points/{LAT:.4f},{LON:.4f}",
+        lat, lon = coords()
+        pt = httpx.get(f"https://api.weather.gov/points/{lat:.4f},{lon:.4f}",
                        headers=h, timeout=15, follow_redirects=True)
         pt.raise_for_status()
         zone = pt.json()["properties"].get("forecastZone", "").rstrip("/").split("/")[-1]
@@ -162,7 +187,8 @@ def station_low(day: dt.date) -> float | None:
     try:
         station = os.environ.get("GARDEN_OBS_STATION")
         if not station:
-            pt = httpx.get(f"https://api.weather.gov/points/{LAT:.4f},{LON:.4f}",
+            lat, lon = coords()
+            pt = httpx.get(f"https://api.weather.gov/points/{lat:.4f},{lon:.4f}",
                            headers=h, timeout=15, follow_redirects=True)
             pt.raise_for_status()
             st = httpx.get(pt.json()["properties"]["observationStations"],
