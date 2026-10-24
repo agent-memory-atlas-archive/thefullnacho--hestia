@@ -7,6 +7,16 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-24 - library search scored: vectors win
+
+- The operator wrote 128 questions (asked for 30). `brain/eval_library.py` scores them: vectors
+  (EmbeddingGemma, pulled into the local Ollama) put the right document first 88% of the time
+  and in the top 5 every time; keyword search 70% and 88%; hybrid fusion is worse than vectors
+  alone. Results and limits in LIBRARY-DESIGN.md. Next: the `library` tool on vectors, with the
+  citation check and the medication rule.
+
+---
+
 ## 2026-10-24 - prompt cache: measured, and Gemma's sliding window caps the win
 
 - Turns re-read the whole prompt every time (median 1.7s, about 4s on long chats). Moving the
