@@ -1,6 +1,7 @@
 # Library: grounded answers from extension publications
 
-Status: designed 2026-10-23, not built. The first slice is deliberately small.
+Status: designed 2026-10-23. Corpus, ingest and the search eval done 2026-10-24 (results below);
+not wired into the brain yet.
 
 ## The idea
 
@@ -72,3 +73,22 @@ picked; the brain never fetches a document and the model never adds one. See SEC
 
 Steps 1 and 2 are the operator's: picking sources and writing questions needs someone who knows
 the garden.
+
+## Search eval, 2026-10-24
+
+128 questions written by the operator without seeing results (`brain/eval_library.py`; the
+questions stay in the gitignored library folder). 56 documents, 556 passages.
+
+| Method | Right document first | In top 3 | In top 5 | MRR |
+|---|---|---|---|---|
+| Keyword (FTS5, BM25) | 89 (70%) | 110 | 113 (88%) | 0.78 |
+| Vectors (EmbeddingGemma) | 113 (88%) | 127 | 128 (100%) | 0.94 |
+| Hybrid (reciprocal rank) | 105 | 122 | 122 | 0.89 |
+
+Vectors win outright, and fusing keyword in makes them worse, so the brain gets vectors alone.
+Most first-place "misses" are a sibling document that also answers (the second composting
+sheet, the bee-planting guide for a bee question). Real ones: fungicide for marigolds found
+the rose guide, and "unusual fruits to grow" found the climate-resiliency guide. Limits: the
+questions were written by someone who knew the titles; there were no `-> none` questions, so
+when to say "not in the library" is untested; and this grades retrieval, not answers. At this
+size (556 x 768) a plain in-memory cosine search is enough; no vector database.
