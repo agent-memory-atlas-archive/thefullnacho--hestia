@@ -110,10 +110,29 @@ def keyword_rank(q: str) -> list[int]:
     return [int(r["chunk_id"]) for r in rows]
 
 
-def vector_rank(q: str, vecs: dict[int, list[float]], qvec=None) -> list[int]:
+def vector_rank(q: str, vecs: dict[int, list[float]], qvec=None) -> tuple[list[int], float]:
+    """Best passages for the question, and the top cosine similarity."""
     qv = qvec or _unit(_embed([QUERY + q])[0])
-    scored = sorted(vecs, key=lambda cid: -sum(a * b for a, b in zip(qv, vecs[cid])))
-    return scored[:POOL]
+    sims = {cid: sum(a * b for a, b in zip(qv, v)) for cid, v in vecs.items()}
+    scored = sorted(sims, key=lambda cid: -sims[cid])
+    return scored[:POOL], sims[scored[0]] if scored else 0.0
+
+
+def none_report(rows: list[dict]) -> None:
+    """Can a similarity floor tell "not in the library" from a real question? A `none`
+    question counts as caught when its best match scores under the floor; a real question
+    is lost when its best match does. Every floor is shown so the choice stays visible."""
+    real = sorted(r["top"] for r in rows if r["mode"] != "none")
+    none = sorted(r["top"] for r in rows if r["mode"] == "none")
+    if not none:
+        print("\nNo `-> none` questions yet, so the not-in-the-library floor is untested.")
+        return
+    print(f"\nBest-match similarity: real questions min {real[0]:.3f} median {real[len(real)//2]:.3f}; "
+          f"none questions max {none[-1]:.3f} median {none[len(none)//2]:.3f}")
+    for floor in sorted({round(x, 2) for x in none + real[:10]}):
+        caught = sum(x < floor for x in none)
+        lost = sum(x < floor for x in real)
+        print(f"  floor {floor:.2f}: none caught {caught}/{len(none)}, real questions lost {lost}/{len(real)}")
 
 
 def fuse(*ranks: list[int]) -> list[int]:
@@ -162,9 +181,9 @@ def main():
     qvecs = [_unit(v) for v in _embed([QUERY + q["q"] for q in qs])]
     methods = {"keyword": [], "vector": [], "hybrid": []}
     for q, qv in zip(qs, qvecs):
-        kw, vr = keyword_rank(q["q"]), vector_rank(q["q"], vecs, qv)
+        kw, (vr, top) = keyword_rank(q["q"]), vector_rank(q["q"], vecs, qv)
         for name, rank in (("keyword", kw), ("vector", vr), ("hybrid", fuse(kw, vr))):
-            methods[name].append({**q, "docs": doc_order(rank)})
+            methods[name].append({**q, "docs": doc_order(rank), "top": top})
     print(f"\n{len(qs)} questions")
     for name, rows in methods.items():
         print(f"{name:8} {score(rows, a.k)}")
@@ -172,6 +191,7 @@ def main():
             for r in rows:
                 if r["mode"] != "none" and not any(w in r["docs"][:a.k] for w in r["want"]):
                     print(f"    miss: {r['q'][:70]!r} wanted {r['want'][0][:40]} got {r['docs'][:1]}")
+    none_report(methods["vector"])
 
 
 if __name__ == "__main__":
