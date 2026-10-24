@@ -7,6 +7,26 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-24 - the library tool, built; live at the next brain restart
+
+- `library` tool (`brain/tools/library.py`): EmbeddingGemma vectors stored beside the passages
+  in `hestia.db`, keyword fallback when the embedder is down, never a half-embedded index.
+  Routed by how-to and diagnosis words and on every garden topic; the prompt says to look there
+  before search. Code appends the source when a reply names none, and adds the pharmacist line
+  to dose, substitute and stopping questions. Read-only in the MCP server.
+- Live DB ingested and embedded (56 documents, 556 passages, about 5 seconds). End to end on
+  five real questions: all grounded and cited with the right page; the rationing-dose question
+  refused and referred. `eval_models.py` still 55/55 with the 13th tool.
+- Found on the way: when a tool fails and the model reaches for an out-of-scope tool, the reply
+  is a bare "Failed: Error: tool 'search' is not allowed". Predates the library; worth a fix.
+
+[non-production] `systemctl --user restart hestia-brain` to put the library live, then ask the
+app a garden how-to question and check for a cited answer.
+[non-production] Write the `-> none` questions in `data/library/questions.md`; a session then
+picks the not-in-the-library floor with `brain/eval_library.py`.
+
+---
+
 ## 2026-10-24 - library search scored: vectors win
 
 - The operator wrote 128 questions (asked for 30). `brain/eval_library.py` scores them: vectors

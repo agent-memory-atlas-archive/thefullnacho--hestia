@@ -1,7 +1,9 @@
 # Library: grounded answers from extension publications
 
-Status: designed 2026-10-23. Corpus, ingest and the search eval done 2026-10-24 (results below);
-not wired into the brain yet.
+Status: designed 2026-10-23; built 2026-10-24. The `library` tool searches by EmbeddingGemma
+vectors (keyword when the embedder is down), code appends the source when an answer names none,
+and code adds the pharmacist line to dose and stopping questions. Still open: the
+not-in-the-library floor (waiting on `-> none` questions) and the inventory join.
 
 ## The idea
 

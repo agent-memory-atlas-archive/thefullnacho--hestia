@@ -40,7 +40,7 @@ def fixtures():
 
         def dispatch(name, args):
             state["calls"].append({"name": name, "args": args})
-            if name in {"records", "memory", "reminder", "recipe"}:
+            if name in {"records", "memory", "reminder", "recipe", "library"}:
                 return original(name, args)
             if name == "home":
                 if args.get("entity_id") not in (None, "light.light_kitchen_lights"):

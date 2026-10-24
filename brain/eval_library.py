@@ -29,10 +29,8 @@ import library_store as lib
 QUESTIONS = lib.LIBRARY_DIR / "questions.md"
 CACHE = lib.LIBRARY_DIR / ".embeddings.json"
 OLLAMA = "http://127.0.0.1:11434"
-EMBED_MODEL = "embeddinggemma"
-# EmbeddingGemma's retrieval prompts. The router bench found its task prefixes are required.
-QUERY = "task: search result | query: "
-DOC = "title: {title} | text: "
+EMBED_MODEL = lib.EMBED_MODEL
+QUERY, DOC = lib.QUERY, lib.DOC   # the same prompts production search uses
 RRF_K = 60
 POOL = 50     # passages each ranker contributes before fusion
 

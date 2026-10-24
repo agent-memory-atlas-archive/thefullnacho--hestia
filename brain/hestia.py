@@ -135,6 +135,8 @@ class TurnTrace:
     streamed_text: str = ""
     failure: str = ""
     repair_tool: str = ""
+    citations: list = field(default_factory=list)   # library passages this turn, as "title, year, p.N"
+    addendum: str = ""                              # code-written lines after the model's answer
 
     def usage(self) -> dict:
         return {"prompt_tokens": self.prompt_tokens, "completion_tokens": self.completion_tokens,
@@ -567,6 +569,12 @@ _INTENT_TOOLS = {
     'records': r"\b(?:log|record|harvest|harvested|picked|vaccinated|thinned)\b",
     'search': r"\b(?:search|look up|news|web)\b",
     'status': r"\b(?:disk|system status|service status|uptime)\b",
+    # How-to, timing and diagnosis words from the library's subjects (LIBRARY-DESIGN.md).
+    'library': (r"\b(?:how (?:do|to|should|can|often|long)|when (?:do|should|to)|what(?:'s| is) (?:eating|wrong)|"
+                r"prun\w*|propagat\w*|fertili[sz]\w*|compost\w*|mulch\w*|overwinter\w*|pests?|aphids?|"
+                r"mites?|borers?|sawfl\w*|leafhoppers?|fung\w*|mildew|mold|mould|blight|diseases?|invasive|"
+                r"ticks?|chickens?|go bag|expir\w*|sell[- ]by|use[- ]by|emergency|power (?:is )?out|"
+                r"outage|seeds?|frost|drought|irrigat\w*|pollinat\w*|bees?|earthworms?|microgreens?)\b"),
 }
 
 
@@ -615,7 +623,7 @@ def _request_schemas(user_text: str) -> list:
     query = plan.get('query', user_text).lower()
     explicit = {name for name, pattern in _INTENT_TOOLS.items() if re.search(pattern, query)}
     if plan['garden_topic']:
-        allow.update(('home', 'weather', 'records'))
+        allow.update(('home', 'weather', 'records', 'library'))
     allow.update(explicit)
     # "Finally ordered the heater" names no goal, but it finishes an open step: offer the tool
     # when the words overlap one. A local read; an empty allow set already means every tool.
@@ -642,6 +650,27 @@ def _act(trace: TurnTrace, name: str, result: ToolResult) -> None:
     ToolResult itself stays name-free because its JSON is what the model reads back."""
     trace.actions.append(result)
     trace.receipts.append({"tool": name, "status": result.status, "text": result.data})
+
+
+_MED_ASK = re.compile(r"\b(?:dose|doses|dosage|how much|stop(?:ping)? taking|skip(?:ping)?|substitut\w*|"
+                      r"double up|ration\w*|cut (?:my|her|his|the) pills?)\b", re.I)
+_MED_WORD = re.compile(r"\b(?:medic(?:ation|ine)s?|meds|insulin|prescriptions?|pills?|inhalers?)\b", re.I)
+MED_REFERRAL = "For a dose, a substitute, or stopping a medication, check with your pharmacist or doctor."
+
+
+def _library_addendum(answer: str, trace: TurnTrace, question: str) -> str:
+    """Code's lines after a library answer: the source when the reply names none of the
+    passages it was given, and the pharmacist line for any dose or stopping question."""
+    out = []
+    if trace.citations:
+        titles = [re.sub(r", (?:\d{4}, )?p\.\d+$", "", c) for c in trace.citations]
+        named = any(" ".join(t.lower().split()[:3]) in answer.lower() for t in titles)
+        if not named:
+            out.append("Source: " + trace.citations[0] + ".")
+    if (_MED_WORD.search(question) and _MED_ASK.search(question)
+            and not re.search(r"\b(?:pharmacist|doctor|physician|prescriber|nurse|health ?care provider)\b", answer, re.I)):
+        out.append(MED_REFERRAL)
+    return "\n".join(out)
 
 
 _TOO_SLOW = "Sorry — that took too long to pull together (a backend was slow). Try again in a moment?"
@@ -746,6 +775,9 @@ async def run_agent(messages: list[dict], *, trace: TurnTrace | None = None) -> 
             if trace.emitted:  # already on screen: correct it in place rather than hide it
                 return trace.streamed_text + "\n" + _UNDONE_CLAIM
             return _UNDONE_CLAIM
+        if answer not in _NO_LEARN and (extra := _library_addendum(answer, trace, messages[-1]['content'])):
+            trace.addendum = extra
+            return (trace.streamed_text if trace.emitted else answer) + "\n" + extra
         return answer
     finally:
         if admitted:
@@ -926,6 +958,8 @@ async def _agent_loop(messages: list[dict]) -> str:
                 _log(f"step {step} tool={name} args={_short(args)} EXECUTOR ERROR {type(e).__name__}")
             if trace := _trace.get():
                 trace.tools.append({"name": name, "mutation": mutation(name, args), "seconds": time.monotonic() - ts})
+                if name == "library" and outcome == "ok":
+                    trace.citations += re.findall(r"^\[\d+\] (.+)$", str(result), re.M)
             fact = receipt(name, args, result, outcome,
                            operation_store.digest([trace.request_id, name, args]) if trace else '')
             if trace and mutation(name, args):
@@ -1342,6 +1376,8 @@ async def chat_completions(request: Request):
                     await queue.put(text)
                 elif trace.failure:
                     await queue.put('\n' + trace.failure)
+                elif trace.addendum:
+                    await queue.put('\n' + trace.addendum)
                 await queue.put(comp)
             finally:
                 _event_sink.reset(status_token)
