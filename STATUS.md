@@ -22,9 +22,10 @@ is public. Those live in the operator's private notes.
 
 - **Live and verified the same day:** the operator restarted the brain. A garden question was
   answered from the household's own records with inference, then the library was pulled with
-  the right passages. Watch item: on that first turn the model offered the library instead of
-  calling it (one extra exchange). If that repeats, tell it to check the library in the same
-  turn for how-to and diagnosis questions.
+  the right passages. On the first turn the model answered generally and offered the library
+  rather than calling it. **Decided by the operator: that is fine.** A general answer that
+  settles the question needs no lookup; offering one for specifics is the right shape. Do not
+  force a library call on every how-to question.
 
 [non-production] Write the `-> none` questions in `data/library/questions.md`; a session then
 picks the not-in-the-library floor with `brain/eval_library.py`.
