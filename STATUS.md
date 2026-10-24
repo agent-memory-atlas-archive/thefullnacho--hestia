@@ -7,6 +7,17 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-24 - the library learns to say "not covered"
+
+- 11 not-in-the-library questions from the operator. A similarity floor of 0.38 catches the
+  clearly off-shelf ones without losing any of the 128 real questions; near misses score like
+  real questions, so the model's reading is the second gate. End to end it mostly holds;
+  numbers and the two weak spots (hydrangea answered from other plants' sheets, "bug in" read as
+  a break-in) in LIBRARY-DESIGN.md. Code no longer cites a source on a "not covered" answer.
+  Live at the next brain restart.
+
+---
+
 ## 2026-10-24 - the library tool, built; live at the next brain restart
 
 - `library` tool (`brain/tools/library.py`): EmbeddingGemma vectors stored beside the passages
@@ -27,8 +38,6 @@ is public. Those live in the operator's private notes.
   settles the question needs no lookup; offering one for specifics is the right shape. Do not
   force a library call on every how-to question.
 
-[non-production] Write the `-> none` questions in `data/library/questions.md`; a session then
-picks the not-in-the-library floor with `brain/eval_library.py`.
 
 ---
 

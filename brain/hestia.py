@@ -665,7 +665,11 @@ def _library_addendum(answer: str, trace: TurnTrace, question: str) -> str:
     if trace.citations:
         titles = [re.sub(r", (?:\d{4}, )?p\.\d+$", "", c) for c in trace.citations]
         named = any(" ".join(t.lower().split()[:3]) in answer.lower() for t in titles)
-        if not named:
+        # "The library doesn't cover that" is an answer with no source; citing one would
+        # suggest the opposite of what was said.
+        declined = re.search(r"library (?:does ?n[o']t|doesn't|has no|lacks)|not in the library|"
+                             r"(?:no|any) (?:specific )?information (?:on|about)", answer, re.I)
+        if not named and not declined:
             out.append("Source: " + trace.citations[0] + ".")
     if (_MED_WORD.search(question) and _MED_ASK.search(question)
             and not re.search(r"\b(?:pharmacist|doctor|physician|prescriber|nurse|health ?care provider)\b", answer, re.I)):

@@ -2,8 +2,8 @@
 
 Status: designed 2026-10-23; built 2026-10-24. The `library` tool searches by EmbeddingGemma
 vectors (keyword when the embedder is down), code appends the source when an answer names none,
-and code adds the pharmacist line to dose and stopping questions. Still open: the
-not-in-the-library floor (waiting on `-> none` questions) and the inventory join.
+and code adds the pharmacist line to dose and stopping questions. A similarity floor
+(0.38) turns away questions the shelf clearly doesn't cover. Still open: the inventory join.
 
 ## The idea
 
@@ -94,3 +94,18 @@ the rose guide, and "unusual fruits to grow" found the climate-resiliency guide.
 questions were written by someone who knew the titles; there were no `-> none` questions, so
 when to say "not in the library" is untested; and this grades retrieval, not answers. At this
 size (556 x 768) a plain in-memory cosine search is enough; no vector database.
+
+## Not in the library, 2026-10-24
+
+11 `-> none` questions. Best-match similarity: real questions lowest 0.412 (median 0.613);
+clearly off-shelf ones (tobacco, mushrooms, soap, greenhouse automation) 0.35 to 0.37. Near
+misses score like real questions: foraging rules finds the chicken-permit sheet at 0.55, pond
+nutrients the wildlife-landscaping sheet at 0.51. So the floor is set low, at 0.38, to catch only
+the clearly off-shelf; turning away a real question costs more than letting a near miss through.
+The model's reading is the second gate, and end to end it mostly holds: pond and raspberry
+varieties answered "the library doesn't cover that", drip irrigation found the clogged-emitter
+advice, tomatoes in raised beds found real transplanting advice in "Planting Your Garden". Two
+weak spots: hydrangea leaf curl was answered from the houseplant and apple-aphid sheets without
+saying they are about other plants, and "how do I bug in" was read as breaking into a house
+(preparedness vocabulary the model lacks). Code no longer appends a source to an answer that
+says the library doesn't cover the question.

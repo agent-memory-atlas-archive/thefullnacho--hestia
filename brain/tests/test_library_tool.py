@@ -75,6 +75,8 @@ def test_addendum_adds_the_source_only_when_the_answer_names_none():
         "Source: Blueberry Pruning Guide, 2026, p.2."
     assert hestia._library_addendum("The Blueberry Pruning Guide says late winter.", trace, "how") == ""
     assert hestia._library_addendum("Late winter.", hestia.TurnTrace(), "how to prune") == ""
+    assert hestia._library_addendum("Sorry, the library doesn't contain information on that.",
+                                    trace, "raspberry varieties?") == ""
 
 
 def test_dose_questions_always_get_the_pharmacist_line():
@@ -108,3 +110,10 @@ def test_loop_appends_the_source_when_the_model_leaves_it_out(shelf, monkeypatch
     monkeypatch.setattr(hestia, "_ollama_chat", fake_chat)
     out = asyncio.run(hestia.run_agent([{"role": "user", "content": "when do I prune blueberries?"}]))
     assert out == "Prune them in late winter.\nSource: Blueberry Pruning Guide, p.1."
+
+
+def test_nothing_close_enough_is_reported_as_not_in_the_library(shelf, monkeypatch):
+    monkeypatch.setattr(library, "FLOOR", 1.01)   # above any cosine
+    assert library.execute("prune blueberry").startswith("Nothing in the household library")
+    monkeypatch.setattr(library, "FLOOR", 0.0)
+    assert library.execute("prune blueberry").startswith("Library passages")
