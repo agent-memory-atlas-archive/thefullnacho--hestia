@@ -7,6 +7,21 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-22 - Voice PE silent for about 20 hours: a firewall rule, not the brain
+
+- **Symptom:** the PE heard the wake word, the brain answered, Chatterbox synthesized, and the
+  HA pipeline debug said `done`, but nothing played. Every spoken announce in that window was
+  silent too, while the brain logged them as accepted.
+- **Cause:** a LAN allowlist added to hl-relay's firewall during the 2026-10-21 hardening left
+  out Home Assistant's port. The PE fetches each reply from HA's `internal_url` over the LAN
+  (`/api/tts_proxy/...`), so that fetch was dropped. Fixed the next day in the persisted
+  ruleset.
+- **Diagnosis shortcut:** if the pipeline debug shows `tts-end` but the PE is silent, fetch the
+  `tts_proxy` URL from another LAN machine. A timeout there means the network, not the voice
+  stack. Confirmed working after the fix: briefing announce and commands on the PE.
+
+---
+
 ## 2026-10-22 - utterance review pushed back to collect more speech
 
 - The log holds 90 utterances, 75 app and 15 voice. Voice stops at 2026-10-19 because the
