@@ -7,6 +7,20 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-23 - the library: grounded answers from extension publications, designed
+
+- `LIBRARY-DESIGN.md`: hand-picked extension PDFs, searched in code (keyword, then hybrid with
+  EmbeddingGemma if it earns it), cited in every answer, joined with the inventory rows for "what
+  can I do with what I have". SECURITY.md records the network shape: downloaded once by hand,
+  nothing fetched at question time. Operator agreed to start with a small curated list.
+
+[non-production] Pick 20 to 30 PDFs from the state extension (what's in the ground, soil, the
+pests on record) and drop them in `data/library/`. Focus work.
+[non-production] Write 30 real garden questions, each with the passage a good answer needs.
+Focus work; before any search code exists.
+
+---
+
 ## 2026-10-22 - Voice PE silent for about 20 hours: a firewall rule, not the brain
 
 - **Symptom:** the PE heard the wake word, the brain answered, Chatterbox synthesized, and the

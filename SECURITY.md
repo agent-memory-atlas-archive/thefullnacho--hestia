@@ -43,6 +43,11 @@ no identifiers, cookies or accounts, and the phone loads images only from the br
 third-party hosts. What leaves the house: the queries, through SearXNG to its upstream engines,
 and plain page GETs to whatever sites the results point at.
 
+**The library is a shelf the operator fills, not a fetcher.** (Designed 2026-10-23, not built;
+LIBRARY-DESIGN.md.) Extension publications are downloaded once, by hand, from sources the operator
+chose, and kept under the gitignored `data/library/`. The brain searches them locally and never
+fetches a document; the model can't add one. Nothing leaves the house at question time.
+
 **The operator's MCP server is a window onto the same tools, not a new door.** `brain/mcp_server.py`
 offers the brain's tool registry to the operator's own Claude Code over stdio, so work done in that
 chat goes through the same validation and side effects as a request to the brain. It opens no
