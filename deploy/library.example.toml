@@ -1,0 +1,10 @@
+# data/library/library.toml: corrections for the library's PDFs (the real file is gitignored,
+# beside the PDFs). Keys are file names. Run `uv run python library_store.py ingest --all`
+# after editing so every document picks up its fix.
+
+["guide3-tomatoes.pdf"]
+title = "Complete Guide to Home Canning, Guide 3: Tomatoes"
+year = 2015
+
+["scanned-handout.pdf"]
+skip = true   # no readable text layer; needs OCR before it can be searched

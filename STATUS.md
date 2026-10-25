@@ -7,6 +7,18 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-24 - library second batch: survival, canning, water, wild edibles
+
+- 20 documents from the operator (Army survival manual, USDA canning guide, CDC, FEMA, wild
+  edibles, maple, elderberry, herbs, snakebite). 75 documents, 1,799 passages; one skipped for an
+  unreadable text layer. A bug that cut documents off at an early "Resources" heading is fixed and
+  every document re-indexed; titles fixed in a private manifest. Vectors still win (81% first, 177
+  of 178 in the top 5). Routing and the tool description cover the new subjects; the wild-food
+  rule is now in code. `eval_models.py` 55/55. Details in LIBRARY-DESIGN.md. Live at the next
+  brain restart.
+
+---
+
 ## 2026-10-24 - the library learns to say "not covered"
 
 - 11 not-in-the-library questions from the operator. A similarity floor of 0.38 catches the

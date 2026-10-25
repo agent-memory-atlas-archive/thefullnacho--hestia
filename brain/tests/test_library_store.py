@@ -74,3 +74,22 @@ def test_question_text_is_never_fts_syntax(db):
     assert lib.fts_query('ticks" OR NEAR(* -dogs') == '"ticks" OR "near" OR "dogs"'
     assert lib.search('ticks" OR NEAR(* -dogs')
     assert lib.search("the and of") == []
+
+
+def test_an_early_resources_heading_does_not_end_the_document():
+    pages = ["Contents\nResources\nGrowing", "Resources\nPlant in spring.", "Prune in winter.",
+             "Harvest in fall.", "References\nSmith 2020"]
+    out = lib.clean_pages(pages)
+    assert "Plant in spring." in out[1] and out[3] == "Harvest in fall." and out[4] == ""
+
+
+def test_manifest_fixes_title_and_year_and_skips_unreadable_files(db, tmp_path, monkeypatch):
+    (tmp_path / "library.toml").write_text(
+        '["a.pdf"]\ntitle = "Real Title"\nyear = 2015\n\n["b.pdf"]\nskip = true\n')
+    for name in ("a.pdf", "b.pdf"):
+        (tmp_path / name).write_bytes(b"%PDF")
+    monkeypatch.setattr(lib, "_read_pdf", lambda path: (["Some text here. " * 10], "slug"))
+    monkeypatch.setattr(lib, "embed_missing", lambda: 0)
+    report = lib.ingest(tmp_path)
+    assert report["skipped"] == ["b.pdf"]
+    assert [(d["title"], d["year"]) for d in lib.docs()] == [("Real Title", 2015)]

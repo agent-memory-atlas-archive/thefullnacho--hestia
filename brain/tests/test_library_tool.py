@@ -117,3 +117,21 @@ def test_nothing_close_enough_is_reported_as_not_in_the_library(shelf, monkeypat
     assert library.execute("prune blueberry").startswith("Nothing in the household library")
     monkeypatch.setattr(library, "FLOOR", 0.0)
     assert library.execute("prune blueberry").startswith("Library passages")
+
+
+def test_edibility_questions_get_the_in_person_identification_line(shelf):
+    assert library.EDIBLE_NOTE in library.execute("are wild garlic plants edible")
+    assert library.EDIBLE_NOTE not in library.execute("when do I plant garlic")
+    trace = hestia.TurnTrace(citations=["Forgotten Foods, p.2"])
+    out = hestia._library_addendum("Forgotten Foods says purslane is a common wild green.", trace,
+                                   "Is this purslane safe to eat?")
+    assert out == hestia.EDIBLE_REFERRAL
+    assert hestia._library_addendum("Forgotten Foods says confirm it in person with an expert.", trace,
+                                    "Is it edible?") == ""
+
+
+def test_new_subjects_route_to_the_library():
+    pattern = hestia._INTENT_TOOLS["library"]
+    for q in ("how long do I boil water at altitude", "what headspace for jelly jars",
+              "how do i shut down the evaporator", "snake bite first aid", "how do I bug in"):
+        assert re.search(pattern, q), q

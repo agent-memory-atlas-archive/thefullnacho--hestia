@@ -32,6 +32,7 @@ OLLAMA = "http://127.0.0.1:11434"
 EMBED_MODEL = lib.EMBED_MODEL
 QUERY, DOC = lib.QUERY, lib.DOC   # the same prompts production search uses
 RRF_K = 60
+MATCH_MIN = 0.6   # below this, a written title isn't trusted to name an indexed document
 POOL = 50     # passages each ranker contributes before fusion
 
 
@@ -45,9 +46,11 @@ def parse(text: str) -> list[dict]:
             if raw.lower() == "none":
                 out.append({"q": q, "mode": "none", "want": []})
             elif " | " in raw:
-                out.append({"q": q, "mode": "all", "want": [t.strip() for t in raw.split(" | ")]})
+                want = [t.strip() for t in raw.split(" | ")]
+                out.append({"q": q, "mode": "all", "want": want, "raw": want})
             else:
-                out.append({"q": q, "mode": "any", "want": [t.strip() for t in re.split(r"\s+or\s+", raw)]})
+                want = [t.strip() for t in re.split(r"\s+or\s+", raw)]
+                out.append({"q": q, "mode": "any", "want": want, "raw": want})
             q = None
     return out
 
@@ -65,6 +68,8 @@ def match_title(name: str, docs: list[dict]) -> tuple[str, float]:
         # A short written title against a long real one: also compare with the real title's
         # opening words, so "Squash Vine Borer" isn't penalised for the subtitle it left out.
         head = " ".join(c.split()[:len(want.split())])
+        if len(want.split()) >= 3 and want in c:
+            return 0.99   # a subtitle written out in full inside the real title
         return max(difflib.SequenceMatcher(None, want, c).ratio(),
                    difflib.SequenceMatcher(None, want, head).ratio())
     best = max((max(sim(d["title"]), sim(Path(d["file"]).stem)), d["file"]) for d in docs)
@@ -172,6 +177,12 @@ def main():
     seen = {}
     for q in qs:
         q["want"] = [seen.setdefault(w, match_title(w, docs)) [0] for w in q["want"]]
+    # A written title no indexed document matches well (a skipped file, a vague label) would
+    # score as a search miss. Set those questions aside and say so instead.
+    unmatched = {w for w, (_, conf) in seen.items() if conf < MATCH_MIN}
+    if unmatched:
+        print(f"Set aside, no confident document match: {sorted(unmatched)}")
+    qs = [q for q in qs if not any(w in unmatched for w in q.get("raw", []))]
     print("Title matches (lowest confidence first):")
     for w, (f, conf) in sorted(seen.items(), key=lambda x: x[1][1])[:12]:
         print(f"  {conf:.2f}  {w!r} -> {f}")

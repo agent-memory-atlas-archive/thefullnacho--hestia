@@ -20,6 +20,7 @@ import math
 import os
 import re
 import subprocess
+import tomllib
 from collections import Counter
 from pathlib import Path
 
@@ -29,10 +30,14 @@ import config
 import records_store as store
 
 LIBRARY_DIR = Path(os.environ.get("HESTIA_LIBRARY_DIR") or config.DATA_DIR / "library")
+# Per-file corrections, kept beside the PDFs (gitignored; format in deploy/library.example.toml):
+# a title and year when the PDF's own are missing or wrong, and skip = true for a file whose
+# text layer is unreadable.
 CHUNK_WORDS = 220
 OVERLAP_WORDS = 40
 MIN_TAIL_WORDS = 60   # a page's last scrap shorter than this joins the chunk before it
 PER_DOC = 2           # most passages one document may contribute to a result
+REFS_FROM = 0.6       # a reference-list heading only ends the text in the last 40% of pages
 OLLAMA = os.environ.get("HESTIA_OLLAMA", "http://127.0.0.1:11434").rstrip("/")
 EMBED_MODEL = os.environ.get("HESTIA_EMBED_MODEL", "embeddinggemma")
 # EmbeddingGemma's retrieval prompts; the router bench found its task prefixes are required.
@@ -79,15 +84,19 @@ def _conn():
 
 def clean_pages(pages: list[str]) -> list[str]:
     """Drop running headers/footers (a line on at least half the pages), print stamps, and
-    everything from the reference list on. Page numbering is kept, empty pages and all."""
+    everything from the reference list on. Page numbering is kept, empty pages and all.
+
+    A reference list only counts in the back of the document: a "Resources" heading in a table
+    of contents or an early section once cut a 102-page guide down to 3 passages."""
     lines = [[ln.strip() for ln in p.splitlines()] for p in pages]
     seen = Counter(ln for page in lines for ln in set(page) if ln)
     repeated = {ln for ln, n in seen.items() if len(pages) > 1 and n >= max(2, len(pages) / 2)}
+    back = int(len(pages) * REFS_FROM) if len(pages) > 2 else 0
     out, done = [], False
-    for page in lines:
+    for n, page in enumerate(lines):
         keep = []
         for ln in page:
-            if done or (ln and _REFS.match(ln)):
+            if done or (n >= back and ln and _REFS.match(ln)):
                 done = True
                 continue
             if ln in repeated or _STAMP.match(ln):
@@ -138,11 +147,18 @@ def meta_of(first_pages: str) -> tuple[str | None, int | None]:
     return (pub.group(1).replace(" ", "") if pub else None, int(year.group(1)) if year else None)
 
 
+def manifest(folder: Path | None = None) -> dict:
+    path = (folder or LIBRARY_DIR) / "library.toml"
+    return tomllib.loads(path.read_text()) if path.exists() else {}
+
+
 def index_doc(file: str, pages: list[str], pdf_title: str | None = None,
-              size: int | None = None, mtime: float | None = None) -> int:
+              size: int | None = None, mtime: float | None = None, fix: dict | None = None) -> int:
     """Replace one document's passages. Returns the number of passages stored."""
+    fix = fix or {}
     pub, year = meta_of(" ".join(pages[:2]))
-    title = title_of(file, pdf_title)
+    title = fix.get("title") or title_of(file, pdf_title)
+    year = fix.get("year", year)
     parts = chunks(clean_pages(pages))
     with _conn() as c:
         _drop(c, file)
@@ -222,10 +238,15 @@ def _load_vectors() -> dict[int, list[float]]:
     return _vectors[key]
 
 
-def ingest(folder: Path = LIBRARY_DIR) -> dict:
+def ingest(folder: Path = LIBRARY_DIR, force: bool = False) -> dict:
     """Index new and changed PDFs in the folder, drop ones that are gone."""
-    report = {"indexed": 0, "unchanged": 0, "removed": 0, "passages": 0, "empty": []}
+    report = {"indexed": 0, "unchanged": 0, "removed": 0, "passages": 0, "empty": [], "skipped": []}
+    fixes = manifest(folder)
     files = {p.name: p for p in sorted(folder.glob("*.pdf"))}
+    for name, fix in fixes.items():
+        if fix.get("skip") and name in files:
+            del files[name]
+            report["skipped"].append(name)
     with _conn() as c:
         known = {r["file"]: (r["size"], r["mtime"])
                  for r in c.execute("SELECT file, size, mtime FROM library_docs")}
@@ -234,11 +255,11 @@ def ingest(folder: Path = LIBRARY_DIR) -> dict:
             report["removed"] += 1
     for name, path in files.items():
         st = path.stat()
-        if known.get(name) == (st.st_size, st.st_mtime):
+        if not force and known.get(name) == (st.st_size, st.st_mtime):
             report["unchanged"] += 1
             continue
         pages, pdf_title = _read_pdf(path)
-        n = index_doc(name, pages, pdf_title, st.st_size, st.st_mtime)
+        n = index_doc(name, pages, pdf_title, st.st_size, st.st_mtime, fixes.get(name))
         report["indexed"] += 1
         report["passages"] += n
         if n == 0:
@@ -315,14 +336,15 @@ def docs() -> list[dict]:
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("ingest", help=f"index new and changed PDFs in {LIBRARY_DIR}")
+    i = sub.add_parser("ingest", help=f"index new and changed PDFs in {LIBRARY_DIR}")
+    i.add_argument("--all", action="store_true", help="re-index every PDF, changed or not")
     s = sub.add_parser("search", help="print the best passages for a question")
     s.add_argument("question")
     s.add_argument("-k", type=int, default=5)
     sub.add_parser("docs", help="list indexed documents")
     a = ap.parse_args()
     if a.cmd == "ingest":
-        print(ingest())
+        print(ingest(force=a.all))
     elif a.cmd == "search":
         for r in search(a.question, a.k):
             print(f"\n## {r['title']} ({r['year'] or 'n.d.'}), p.{r['page']}\n{r['text'][:600]}")

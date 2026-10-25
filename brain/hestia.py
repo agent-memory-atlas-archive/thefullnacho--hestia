@@ -574,7 +574,12 @@ _INTENT_TOOLS = {
                 r"prun\w*|propagat\w*|fertili[sz]\w*|compost\w*|mulch\w*|overwinter\w*|pests?|aphids?|"
                 r"mites?|borers?|sawfl\w*|leafhoppers?|fung\w*|mildew|mold|mould|blight|diseases?|invasive|"
                 r"ticks?|chickens?|go bag|expir\w*|sell[- ]by|use[- ]by|emergency|power (?:is )?out|"
-                r"outage|seeds?|frost|drought|irrigat\w*|pollinat\w*|bees?|earthworms?|microgreens?)\b"),
+                r"outage|seeds?|frost|drought|irrigat\w*|pollinat\w*|bees?|earthworms?|microgreens?|"
+                r"canning|canner|canned|jars?|headspace|pickl\w*|ferment\w*|jams?|jell(?:y|ies)|"
+                r"preserv\w*|maple|sap|syrup|evaporator|forag\w*|edible|wild (?:plants?|food)|herbs?|"
+                r"elderberr\w*|purif\w*|boil(?:ing)? water|drinking water|water (?:filter|treatment)|"
+                r"survival|shelter|fire ?starting|start a fire|navigat\w*|first aid|snake ?bites?|"
+                r"bug (?:in|out)|evacuat\w*|prepared\w*|go ?bag)\b"),
 }
 
 
@@ -656,6 +661,9 @@ _MED_ASK = re.compile(r"\b(?:dose|doses|dosage|how much|stop(?:ping)? taking|ski
                       r"double up|ration\w*|cut (?:my|her|his|the) pills?)\b", re.I)
 _MED_WORD = re.compile(r"\b(?:medic(?:ation|ine)s?|meds|insulin|prescriptions?|pills?|inhalers?)\b", re.I)
 MED_REFERRAL = "For a dose, a substitute, or stopping a medication, check with your pharmacist or doctor."
+_EAT_ASK = re.compile(r"\b(?:edible|safe to eat|can (?:i|we|you) eat|ok to eat|okay to eat|poisonous|toxic)\b", re.I)
+EDIBLE_REFERRAL = ("Never eat a wild plant, berry or mushroom on a written description alone; have the "
+                   "identification confirmed in person by someone who knows the species.")
 
 
 def _library_addendum(answer: str, trace: TurnTrace, question: str) -> str:
@@ -674,6 +682,9 @@ def _library_addendum(answer: str, trace: TurnTrace, question: str) -> str:
     if (_MED_WORD.search(question) and _MED_ASK.search(question)
             and not re.search(r"\b(?:pharmacist|doctor|physician|prescriber|nurse|health ?care provider)\b", answer, re.I)):
         out.append(MED_REFERRAL)
+    if (trace.citations and _EAT_ASK.search(question)
+            and not re.search(r"\bin person\b|\bexpert\b|positive(?:ly)? identif", answer, re.I)):
+        out.append(EDIBLE_REFERRAL)
     return "\n".join(out)
 
 

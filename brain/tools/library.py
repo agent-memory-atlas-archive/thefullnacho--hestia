@@ -24,6 +24,11 @@ FLOOR = float(os.environ.get("HESTIA_LIBRARY_FLOOR", "0.38"))
 MED_NOTE = ("Medication rule: cite what these publications say about planning, supply and storage "
             "only. For a dose, a substitute, or stopping or skipping a medication, tell the user to "
             "ask their pharmacist or doctor; do not advise it yourself.")
+EDIBLE_NOTE = ("Wild food rule: describe what these publications say, but never tell the user a wild "
+               "plant, berry or mushroom is safe to eat on the strength of a written description; say "
+               "the identification must be confirmed in person by someone who knows the species.")
+_EDIBLE = re.compile(r"\b(?:edible|safe to eat|can (?:i|we|you) eat|poisonous|toxic|forag\w*|wild (?:plants?|"
+                     r"foods?|greens|berr(?:y|ies)|mushrooms?)|mushrooms?)\b", re.I)
 _MED = re.compile(r"\b(?:medic(?:ation|ine)s?|meds|insulin|prescriptions?|pharmac\w*|dos(?:e|es|age)|"
                   r"pills?|inhalers?|oxygen)\b", re.I)
 
@@ -34,8 +39,11 @@ SCHEMA = {
         "description": ("Search the household's library of university extension and agricultural "
                         "experiment station publications: vegetables, fruit, pruning, soil and "
                         "fertility, compost, pests and plant diseases, invasive plants, bees and "
-                        "wildlife, backyard chickens, ticks, mold, food dates and budgets, and "
-                        "emergency preparedness. Use it for how-to, timing and diagnosis questions "
+                        "wildlife, backyard chickens, ticks, mold, food dates and budgets, home "
+                        "canning and preserving, maple sugaring, herbs and wild edible plants, water "
+                        "treatment, wilderness survival (fire, shelter, navigation, first aid, "
+                        "snakebite) and emergency preparedness. Use it for how-to, timing and "
+                        "diagnosis questions "
                         "in those areas, then answer from the passages and name the publication and "
                         "page. Pass the user's question in plain words as the query."),
         "parameters": {
@@ -71,4 +79,6 @@ def execute(query: str) -> str:
     out = head + "\n\n" + "\n\n".join(lines)
     if _MED.search(query) or _MED.search(hits[0]["text"]):
         out += "\n\n" + MED_NOTE
+    if _EDIBLE.search(query):
+        out += "\n\n" + EDIBLE_NOTE
     return out

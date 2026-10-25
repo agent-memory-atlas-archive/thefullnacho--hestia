@@ -109,3 +109,27 @@ weak spots: hydrangea leaf curl was answered from the houseplant and apple-aphid
 saying they are about other plants, and "how do I bug in" was read as breaking into a house
 (preparedness vocabulary the model lacks). Code no longer appends a source to an answer that
 says the library doesn't cover the question.
+
+## Second batch, 2026-10-24
+
+20 more documents from federal sources and neighboring extensions: the Army survival manual
+(ATP 3-50.21), the USDA Complete Guide to Home Canning (8 parts), CDC backcountry water
+treatment, FEMA's Are You Ready?, and sheets on wild edibles, herbs, elderberries, maple
+sugaring, snakebite and emergency drinking water. 75 documents, 1,799 passages. One file was
+skipped: its fonts scramble the text layer, and there is no OCR on the box.
+
+Found on the way and fixed: a "Resources" or "References" line early in a document (a table of
+contents) cut off everything after it. A 102-page guide had been reduced to 3 passages, and
+three first-batch sheets were clipped too. Reference lists now only end the text in the back 40%
+of a document. Titles and years the PDFs get wrong are corrected in a private
+`data/library/library.toml` (format in `deploy/library.example.toml`).
+
+On 178 questions: vectors put the right document first 81% of the time and in the top 5 for 177;
+keyword 70% and 90%. Most first-place misses are a sibling that also answers (the canning guides
+overlap, three sources cover boiling water). The cost of the bigger shelf: long documents win
+first place more often, so the first batch's questions slipped from 113 to 110 first-place hits,
+with the top 5 unchanged at 128 of 128. The 0.38 floor still loses no real question.
+
+Wild food is now code-backed like medication: an edibility question gets a fixed line that the
+identification must be confirmed in person. End to end, "how do I bug in" (read as a break-in
+before the preparedness sources) now answers from FEMA and the medical-needs sheet.
