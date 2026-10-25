@@ -7,6 +7,31 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-25 - session close: Lite voice stack measured, the library live, posts drafted
+
+- **Hestia Lite** (branch `exp/small-router`, pushed): KittenTTS nano int8 picked as the voice
+  (faster than real time on the Pi 4, 256 MB, chosen by ear) and Moonshine BASE leads speech
+  recognition (1.8% word error, about 1 s, 432 MB, on synthetic speech only). The 270M caller is
+  still the gate (about 1 in 5 not fully right) and has not run on the Pi.
+- **The library** went live with the second batch and the "not covered" floor (entries below).
+- **Posts:** eight fact-checked drafts built from this log, kept private as scaffolding for the
+  operator's rewrite. Shape decided: the operator's story plus agent-facing lab notes, numbers
+  tagged measured or estimated, every claim linked to this repo.
+- **Parked:** an outside AI-news aggregator as a feed source; the operator is testing its value
+  first and would rather the feed find original sources.
+- **In flight:** the utterance log (brightness, rooms, chained commands); the operator's story
+  for the Pi 4 post.
+- **Next concrete action (a session):** once the deliberate commands are logged, split the log
+  into calibration and test halves and score the Lite router and ask-or-act gate on real speech.
+
+[non-production] Write the story for the Pi 4 voice-stack post (focus).
+[non-production] Record about 20 real commands each, by phone at desk distance, for Lite's speech
+recognition test (focus).
+[non-production] Post the reply on the r/homeassistant "ready to give up on voice" thread, if not
+already done.
+
+---
+
 ## 2026-10-25 - utterance review done; the log stays on
 
 - The operator read the dump: 144 utterances (94 app, 50 voice), real speech, typos and all.
