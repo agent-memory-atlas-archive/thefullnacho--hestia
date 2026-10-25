@@ -72,7 +72,7 @@ async def first_message(model: str, prompt: str):
     try:
         system = await hestia._build_system_prompt(prompt)
         schemas = hestia._request_schemas(prompt)
-        msg = await hestia._ollama_chat([
+        msg = await hestia._model_chat([
             {"role": "system", "content": system}, {"role": "user", "content": prompt}], schemas)
         return msg, len(schemas)
     finally:
