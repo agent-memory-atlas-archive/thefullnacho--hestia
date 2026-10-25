@@ -7,6 +7,22 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-25 - utterance review done; the log stays on
+
+- The operator read the dump: 144 utterances (94 app, 50 voice), real speech, typos and all.
+  Soft spots: brightness commands, specific rooms, and chained commands (1 of 50 voice lines,
+  "front door and both lampposts off", which the big brain did correctly in one turn).
+- The log stays on (`80-utterance-log.conf`) while the operator runs a brightness battery per
+  light and chained and room commands on purpose; score those tagged as deliberate.
+- Lite design direction from the review: chaining goes to group entities (the room groups
+  exist in Home Assistant) or a code split on "and", never to the 270M caller making several
+  calls. Device names resolve through an alias table in code, with EmbeddingGemma as fallback.
+
+[non-production] Brightness battery on each light, plus chained and room commands, by voice,
+over the next few days.
+
+---
+
 ## 2026-10-24 - library second batch: survival, canning, water, wild edibles
 
 - 20 documents from the operator (Army survival manual, USDA canning guide, CDC, FEMA, wild
@@ -118,9 +134,6 @@ without looking at search results. Focus work. Then a session scores keyword vs 
   4060 Ti was out; it is back now. Fifteen spoken lines are too few to split into calibration
   and test halves, so the log stays on through a couple more days of voice commands.
 
-[non-production] About 2026-10-25: review the utterance dump (`cd brain && uv run python
-utterance_store.py dump --since 2026-10-15`), read each one aloud, flag any that don't sound
-like real speech; then turn the log off (delete the drop-in, daemon-reload, restart).
 
 ---
 
