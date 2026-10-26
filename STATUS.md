@@ -7,6 +7,27 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-25 (evening) - strata trial: Qwen3.8-Flash-Next Q2_0 as a local coding sub-agent
+
+- **Trial:** the operator took Gemma down and served Qwen3.8-Flash-Next Q2_0 through strata across
+  both cards (64k context). Key-match probe 93% at K=5, misses only on passive capture.
+- **Coding replay** (`benchmarks/codebench.py`, `d3ed814`): eight real hestia fixes replayed from
+  their parents. 8/8 passed their own tests, 7/8 with the full suite green. The miss changed what
+  `estimate()` returns and quietly loosened the thread history cap. About 55 tok/s, one to three
+  minutes a task, mostly thinking. Write-up in `benchmarks/RESULTS.md`.
+- **Fix:** the eval harness ignored `HESTIA_BACKEND=openai` (`96b1463`).
+- **Cost:** strata held 27 of 30 GB RAM and all swap, so the box was unusable for anything else.
+  Strata stopped; Gemma and the brain are back, health green, Gemma warmed at 32k context.
+- **Untested:** a multi-turn sub-agent that finds its own files.
+- **Next concrete action (a session, only if a local sub-agent is still wanted):** a multi-turn
+  replay where the model gets the task and a read-file tool instead of the file, full suite as
+  the gate.
+
+[non-production] Check why the 4060 Ti runs at PCIe x1 (its max is x8): riser or slot. Only
+matters if a model is served across both cards again.
+
+---
+
 ## 2026-10-25 - session close: Lite voice stack measured, the library live, posts drafted
 
 - **Hestia Lite** (branch `exp/small-router`, pushed): KittenTTS nano int8 picked as the voice
