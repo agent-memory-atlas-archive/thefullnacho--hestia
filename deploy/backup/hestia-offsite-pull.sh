@@ -10,6 +10,7 @@
 #
 #   1) trigger a fresh config snapshot on hl-relay (HA + *arr),
 #   2) stream the latest dated dir (records DB + memories + config) into the encrypted repo,
+#      then the rolling photos copy as its own snapshot series,
 #   3) apply retention, verify integrity, and ping a healthcheck so a SILENT failure still pages.
 set -euo pipefail
 
@@ -51,6 +52,16 @@ $SSH "$REMOTE" "bash $REMOTE_SNAP '$STAMP'" || fail "remote config-snapshot fail
 if ! $SSH "$REMOTE" "tar --sort=name -C $REMOTE_BK -cf - '$STAMP'" \
      | restic backup --stdin --stdin-filename "hestia-$STAMP.tar" --tag offsite --host hestia; then
   fail "restic backup failed for $STAMP"
+fi
+
+# 3b) Photos: hl-relay holds one rolling copy (hestia-backup.sh step 6). A fixed stdin name keeps
+#     them one snapshot series for retention, and --sort=name plus unchanged mtimes let restic's
+#     chunking store a photo once however many nights it is pulled, so the repo grows by new
+#     photos only. Absent until the home leg first ships them, which is not a failure.
+if $SSH "$REMOTE" "test -d $REMOTE_BK/photos"; then
+  $SSH "$REMOTE" "tar --sort=name -C $REMOTE_BK -cf - photos" \
+    | restic backup --stdin --stdin-filename "hestia-photos.tar" --tag offsite --host hestia \
+    || fail "restic photo backup failed"
 fi
 
 # 4) Retention + integrity (sample 10% of pack data each run; a full --read-data is the weekly job).

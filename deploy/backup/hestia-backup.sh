@@ -3,7 +3,7 @@
 # lineage, garden) and the learned memories. Everything else (model weights, code) is
 # re-downloadable or already in git, so it's deliberately NOT backed up here, unless the
 # operator lists it in HESTIA_BACKUP_EXTRA_DIRS (step 3b), for small state that lives outside
-# this repo and exists on one disk only.
+# this repo and exists on one disk only. Photos (step 6) ship as one rolling copy instead.
 #
 # Ships DATED snapshots (not a mirror) so a corrupted DB can never overwrite the last good
 # copy, and keeps KEEP nights of history off-box. The snapshot is integrity-checked before it
@@ -31,6 +31,10 @@ KEEP="${HESTIA_BACKUP_KEEP:-14}"
 # the paths are the operator's own. Each directory is capped so a wrong entry cannot flood the leg.
 EXTRA_DIRS="${HESTIA_BACKUP_EXTRA_DIRS:-}"
 EXTRA_MAX_MB="${HESTIA_BACKUP_EXTRA_MAX_MB:-50}"
+# Photos (step 6): the ingest photos and the identify sightings dataset. Too big to copy into
+# every dated snapshot, so hl-relay holds one rolling copy and the off-site leg's restic keeps
+# their history without storing an unchanged photo twice.
+PHOTO_DIR="${HESTIA_PHOTO_DIR:-$REPO/data/photos}"
 
 SSH="ssh -i $SSH_KEY -p $REMOTE_PORT -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new"
 REMOTE="$REMOTE_USER@$REMOTE_HOST"
@@ -91,8 +95,22 @@ tar -C "$STAGE" -cf - . | $SSH "$REMOTE" "mkdir -p '$REMOTE_DIR/$STAMP' && tar -
 # 5) Prune: keep only the KEEP most-recent dated snapshots off-box.
 $SSH "$REMOTE" "cd '$REMOTE_DIR' && ls -1d 20*/ 2>/dev/null | sort | head -n -$KEEP | tr -d / | xargs -r rm -rf"
 
-if [ "$extra_failed" -ne 0 ]; then
-  echo "backup PARTIAL: $STAMP db and memories shipped, but an extra directory failed (see above)" >&2
+# 6) Photos as one rolling copy at $REMOTE_DIR/photos. Unpacked beside the old copy first and
+#    swapped in only once the whole stream arrived, so a dropped connection leaves last night's
+#    copy whole. Not a dated dir, so step 5's prune never touches it.
+photos_failed=0
+if [ -d "$PHOTO_DIR" ]; then
+  if tar -C "$PHOTO_DIR" -cf - . | $SSH "$REMOTE" "cd '$REMOTE_DIR' && rm -rf photos.new photos.old \
+       && mkdir photos.new && tar -C photos.new -xf - \
+       && { [ ! -d photos ] || mv photos photos.old; } && mv photos.new photos && rm -rf photos.old"; then
+    echo "photos ok: $(du -sh "$PHOTO_DIR" | cut -f1) -> $REMOTE:$REMOTE_DIR/photos"
+  else
+    echo "photos failed to ship from $PHOTO_DIR" >&2; photos_failed=1
+  fi
+fi
+
+if [ "$extra_failed" -ne 0 ] || [ "$photos_failed" -ne 0 ]; then
+  echo "backup PARTIAL: $STAMP db and memories shipped, but an extra directory or the photos failed (see above)" >&2
   exit 1
 fi
 echo "backup ok: $STAMP -> $REMOTE:$REMOTE_DIR/$STAMP/ (db $(du -h "$STAGE/hestia.db" | cut -f1), $(ls "$STAGE/memory" | wc -l) memory files${extra_names:+, extras:$extra_names})"

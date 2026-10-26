@@ -8,11 +8,18 @@ house**. This off-site leg adds the third copy on a dedicated box in a datacente
 
 ```
 GPU box ──02:00 ET push──▶ hl-relay:~/hestia-backups/<DATE>/   (hestia.db + memory/ + extra/)   [home, leg 1+2]
+        └──────── same run ──▶ hl-relay:~/hestia-backups/photos/   (one rolling copy of data/photos)
                                       │
 dedi (youruser@offsite-host.example.net) ──03:30 ET PULL over Tailscale──┐
   1. ssh hl-relay → hl-relay-config-snapshot.sh <DATE>  (writes  …/<DATE>/config/)
   2. ssh hl-relay → tar <DATE>  ──stdin──▶  encrypted restic repo   [off-site, leg 3]
+  3. ssh hl-relay → tar photos  ──stdin──▶  same repo, its own snapshot series (hestia-photos.tar)
 ```
+
+- **Photos ride separately.** The ingest photos and the identify sightings dataset are too big to
+  copy into every dated dir, so hl-relay keeps a single copy, swapped in only once a night's
+  stream fully arrives. Restic stores each unchanged photo once, so their off-site history costs
+  about their real size.
 
 - **Pull, not push.** dedi reaches into hl-relay read-only; the home boxes hold **no**
   credentials to the restic repo, so a compromise at home cannot delete off-site history.
@@ -44,8 +51,8 @@ From the dedi box (or any box with the repo + password):
 ```bash
 export RESTIC_REPOSITORY=~/hestia-offsite/repo
 export RESTIC_PASSWORD_FILE=~/hestia-offsite/.restic-pass   # or paste from password manager
-restic snapshots                       # list available nights
-restic restore latest --target /tmp/r  # restores hestia-<DATE>.tar
+restic snapshots                       # list available nights (two series: hestia-<DATE>.tar and hestia-photos.tar)
+restic restore <ID> --target /tmp/r    # the newest hestia-<DATE>.tar snapshot's ID
 tar -xf /tmp/r/*.tar -C /tmp/r          # → /tmp/r/<DATE>/{hestia.db, memory/, extra/, config/}
 ```
 
@@ -56,6 +63,9 @@ Then put state back:
   directory by its own name, working tree and `.git` included. Restore with
   `tar -xzf extra/<name>.tar.gz -C <parent of the original directory>`. A failed or oversized entry
   makes the nightly run exit non-zero and page the phone, though the DB and memories still ship.
+- **photos** → `restic restore latest --path /hestia-photos.tar --target /tmp/p`, then
+  `tar -xf /tmp/p/hestia-photos.tar -C /tmp/p` and copy `/tmp/p/photos/` to `~/hestia/data/photos/`.
+  The sightings table in `hestia.db` points at these files by relative path.
 - **HA** → `tar -xzf config/ha_config.tar.gz -C /opt/home/ha_config` on hl-relay (HA stopped).
 - **\*arr** → in each app's UI, System → Backup → Restore, upload `config/<app>/<app>_backup_*.zip`.
 - **adguard** → `tar -xzf config/adguard.tar.gz -C /opt/home/adguard/confdir`.
