@@ -264,3 +264,35 @@ One-shot and spoon-fed: the prompt names the file and includes the passing tests
 sub-agent also has to find the files and work across turns; that is untested. Strata held
 27 of 30 GB RAM and all swap with the 4060 Ti on a PCIe x1 link, which made the box
 unusable for anything else while it served.
+
+# Vision species ID: Gemma 4 12B vs the forager_ml experts (2026-10-25)
+
+`vision_id.py` asks the resident model to identify forager_ml validation photos, 10 per
+class (565 photos), closed set: it gets the matching expert's class list and must answer
+one class key. Compared against each EfficientNet expert's mean per-class recall on the
+full val split.
+
+```
+expert          classes   gemma4:12b   efficientnet   toxic called safe
+berry              11        27.3%         92.3%          2/60
+high-value         11        37.3%         95.7%          4/20
+medicinals         21        36.2%         95.7%         28/110
+mushrooms          14        16.4%         88.1%          0/120
+```
+
+0.7 s a photo. 14 of 130 deadly or catch-all-toxic photos were named as a safe species:
+foxglove and both hemlocks as stinging nettle, the toxic catch-all as chicken of the woods.
+The experts score 0.0 on that measure.
+
+## Findings
+
+- **A general vision model cannot do fine-grained species ID.** Asked open-ended, it often
+  declined to name the plant; forced to pick, it defaulted to poison ivy for leafy photos.
+- **Classifier first, model narrates.** Species ID belongs to the experts (4.9M parameters
+  each), run as a tool; the model explains the result and the lookalike warning.
+  Fine-tuning the resident brain for this would trade its main job for a worse classifier.
+
+## Caveats
+
+Ten photos a class, one pass at temperature 0. The expert numbers are on the val split
+they were selected on, so they read slightly high.
