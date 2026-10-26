@@ -49,6 +49,7 @@ from tool_contract import ToolResult, mutation, receipt, validate, read_call_fro
 
 import memory_store  # noqa: E402
 import identify  # noqa: E402
+import sightings_store  # noqa: E402
 import nfc  # noqa: E402
 import whelp_form  # noqa: E402
 import board  # noqa: E402
@@ -1781,12 +1782,12 @@ async def _identify_photos(request: Request) -> tuple[list[bytes], str]:
     return photos, ""
 
 
-async def _identify(request: Request) -> tuple[dict, int]:
+async def _identify(request: Request, keep: bool = False) -> tuple[dict, int]:
     photos, err = await _identify_photos(request)
     if err:
         return {"error": err}, 413
     try:
-        return await asyncio.to_thread(identify.identify, photos), 200
+        return await asyncio.to_thread(identify.keep if keep else identify.identify, photos), 200
     except identify.Unavailable as e:
         return {"error": f"identify is not set up: {e}"}, 503
     except ValueError as e:
@@ -1800,10 +1801,33 @@ async def identify_form():
 
 @app.post("/identify")
 async def identify_page(request: Request):
-    result, status = await _identify(request)
+    # The page keeps what it identifies as a sighting to label; the JSON route keeps nothing.
+    result, status = await _identify(request, keep=True)
     if status != 200:
         return HTMLResponse(nfc.error_page(html.escape(result["error"]), str(status)), status_code=status)
     return HTMLResponse(identify.result_page(result))
+
+
+@app.post("/identify/{sid}/label")
+async def identify_label(sid: int, label: str = Form("")):
+    if not await asyncio.to_thread(sightings_store.label, sid, label):
+        why = "Type what it was." if label.strip() else "No such sighting."
+        return HTMLResponse(nfc.error_page(why, "400"), status_code=400)
+    return HTMLResponse(identify.labeled_page(sid, " ".join(label.split())[:sightings_store.MAX_LABEL]))
+
+
+@app.get("/identify/review")
+async def identify_review():
+    rows = await asyncio.to_thread(sightings_store.recent, 100)
+    return HTMLResponse(identify.review_page(rows))
+
+
+@app.get("/identify/photo/{sid}/{n}")
+async def identify_photo(sid: int, n: int):
+    path = await asyncio.to_thread(identify.photo_path, sid, n)
+    if not path:
+        return JSONResponse(status_code=404, content={"error": "no such photo"})
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @app.post("/v1/identify")

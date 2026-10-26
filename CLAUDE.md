@@ -40,9 +40,9 @@ bulk-touched. Control those one at a time, by name.
 | `brain/skills/` | The brain's own skill packs (almanac, garden_bed, home_control, media, recipe, whelping, wildlife). **Not** Claude Code skills |
 | `clients/` | The app at `/app`: `chat.html` shell, `theme.css` shared with `/recipes`, one script per view (chat, today, status, library, plus feed.js for Library's picks). Plain files, no build step. See `HARNESS.md`, "The app" |
 | `brain/nfc.py`, `brain/whelp_form.py` | No-LLM capture surfaces: plain forms that POST straight to the stores. **Never** route these through the model |
-| `brain/identify.py` | Species ID at `/identify`: the forager_ml router and experts on CPU, loaded from the field station checkout with its two-photo rule. No model, no writes |
+| `brain/identify.py` | Species ID at `/identify`: the forager_ml router and experts on CPU, loaded from the field station checkout with its two-photo rule. No model. Keeps each sighting for a person to label (`sightings_store.py`, `/identify/review`): the local in-field dataset |
 | `brain/mcp_server.py` | Stdio MCP server offering the same tool registry to the operator's Claude Code. Read-only unless `HESTIA_MCP_WRITES=1`; writes are audited. A tool added to `brain/tools/` must be classified in its `READ_ONLY` or `EXCLUDED` |
-| `brain/*_store.py` | SQLite stores: records, memory, reminders, threads (chat history), feed (picks and reactions), goals (plans and steps), library (extension passages and their vectors), all in `hestia.db` |
+| `brain/*_store.py` | SQLite stores: records, memory, reminders, threads (chat history), feed (picks and reactions), goals (plans and steps), library (extension passages and their vectors), sightings (identified photos and their labels), all in `hestia.db` |
 | `brain/voice/` | Whisper STT, Chatterbox-Turbo TTS, Piper CPU fallback. Separate venv and pyproject |
 | `deploy/systemd/` | Units and timers: brain, ollama, briefing, journal, feed, reminders, garden-watch, puppy-watch, box-watch, backup, whisper, chatterbox, piper |
 | `benchmarks/`, `brain/eval_*.py` | Model evaluation. `MODEL_EVAL.md` records results |

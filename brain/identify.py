@@ -11,12 +11,14 @@ than copied here: the safety metadata (which species is DEADLY) and the two-phot
 an edible verdict on one photo's word) must keep one source. If that checkout or its
 `session.py` is missing, this refuses to identify rather than run without the rule.
 
-Nothing is written and nothing leaves the box. Keeping photos and their confirmed labels as
-a local dataset is the next step, not this one.
+Nothing leaves the box. The photo page keeps each identification as a sighting (the photos,
+upright with EXIF stripped, and the classifiers' call) for a person to label with what it
+really was: the local in-field dataset, in sightings_store. The JSON route keeps nothing.
 """
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import html
 import importlib
 import importlib.util
@@ -26,12 +28,17 @@ import sys
 import threading
 from pathlib import Path
 
+import config
+import sightings_store
 from nfc import page
 
 STATION = Path(os.environ.get("HESTIA_FORAGER_STATION")
                or Path.home() / "Documents/Forager/forager-field-station")
 # The two-photo rule fuses up to this many angles of one specimen. Two is what it asks for.
 MAX_PHOTOS = 2
+# Kept photos are re-encoded no larger than this on the long side: plenty for the 224px
+# experts and for a person checking a label, without keeping 12MP originals.
+KEEP_SIDE = 1600
 
 _lock = threading.Lock()
 _loaded: dict = {}
@@ -65,8 +72,7 @@ def _load() -> dict:
         return _loaded
 
 
-def identify(photos: list[bytes]) -> dict:
-    """Identify one specimen from one or two photos. Raises Unavailable or ValueError."""
+def _open(photos: list[bytes]) -> list:
     from PIL import Image, ImageOps, UnidentifiedImageError
 
     if not photos:
@@ -80,9 +86,48 @@ def identify(photos: list[bytes]) -> dict:
             images.append(ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB"))
         except (UnidentifiedImageError, OSError) as e:
             raise ValueError("that file isn't a photo this can read (JPEG or PNG works)") from e
+    return images
+
+
+def _classify(images: list) -> dict:
     state = _load()
     result = state["session"].resolve_session(state["pipe"], images)
     return {**dataclasses.asdict(result), "photos": len(images)}
+
+
+def identify(photos: list[bytes]) -> dict:
+    """Identify one specimen from one or two photos. Raises Unavailable or ValueError."""
+    return _classify(_open(photos))
+
+
+def keep(photos: list[bytes]) -> dict:
+    """Identify, then keep the photos and the call as a sighting to be labeled.
+
+    Each photo is saved re-encoded from the decoded pixels, so no EXIF survives (a phone
+    photo's GPS would otherwise sit in the dataset)."""
+    images = _open(photos)
+    result = _classify(images)
+    rel_dir = Path("identify") / dt.datetime.now().strftime("%Y-%m")
+    (config.PHOTO_DIR / rel_dir).mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    saved = []
+    for n, img in enumerate(images, 1):
+        img = img.copy()
+        img.thumbnail((KEEP_SIDE, KEEP_SIDE))
+        rel = rel_dir / f"{stamp}-{n}.jpg"
+        img.save(config.PHOTO_DIR / rel, format="JPEG", quality=90)
+        saved.append(str(rel))
+    return {**result, "sighting": sightings_store.add(saved, result)}
+
+
+def photo_path(sid: int, n: int) -> Path | None:
+    """The file for photo n (1-based) of a sighting, only if it is one this module kept."""
+    s = sightings_store.get(sid)
+    if not s or not 1 <= n <= len(s["photos"]):
+        return None
+    root = (config.PHOTO_DIR / "identify").resolve()
+    path = (config.PHOTO_DIR / s["photos"][n - 1]).resolve()
+    return path if path.is_relative_to(root) and path.is_file() else None
 
 
 def _name(key: str) -> str:
@@ -115,7 +160,8 @@ def _form(note: str = "") -> str:
 
 def form_page() -> str:
     return page(f"<h1>What is this?</h1>"
-                f'<div class="subject">Berries, mushrooms and wild plants</div>{_form()}',
+                f'<div class="subject">Berries, mushrooms and wild plants</div>{_form()}'
+                f'<div class="meta"><a href="/identify/review" style="color:#9ad">Sightings to label</a></div>',
                 title="Identify")
 
 
@@ -140,5 +186,69 @@ def result_page(r: dict) -> str:
         body = (f'<div class="big">&#127807;</div><div><strong>{esc(_name(r["species"]))}</strong>'
                 f' &mdash; {tier}</div>{sci}<div class="meta">{conf}</div>{look}{diff}'
                 f'<div class="warn">Check the lookalike difference yourself before eating.</div>')
+    labeling = _label_form(r["sighting"], r) if r.get("sighting") else ""
     retry = _form('<div class="due"></div>')
-    return page(f"<h1>Identify</h1>{body}{retry}", title="Identify")
+    return page(f"<h1>Identify</h1>{body}{labeling}{retry}", title="Identify")
+
+
+def _guess(r: dict) -> str:
+    """What the classifiers said, in a few words, for the label form and the review list."""
+    if not r["abstained"]:
+        return _name(r["species"])
+    lean = r["key_diff"].removeprefix("Leaning ").split(",")[0] if r["reason"] == "need_second_photo" else ""
+    return f"not sure (leaning {lean})" if lean else "not sure"
+
+
+def _species_list() -> str:
+    known = sorted({_name(k) for k in _class_keys()})
+    return '<datalist id="species">' + "".join(f'<option value="{html.escape(k)}">' for k in known) + "</datalist>"
+
+
+def _label_form(sid: int, r: dict, current: str | None = None, species_list: bool = True) -> str:
+    now = f'<div class="meta">Labeled: <strong>{html.escape(current)}</strong></div>' if current else ""
+    return f"""
+    <div class="due">
+      <form method="post" action="/identify/{sid}/label">
+        <label for="l{sid}">What was it really?</label>
+        {now}
+        <input id="l{sid}" name="label" list="species" placeholder="e.g. cilantro" autocomplete="off">
+        {_species_list() if species_list else ""}
+        <div class="meta">The classifiers said: {html.escape(_guess(r))}. Only label what you are sure of.</div>
+        <button type="submit">Save label</button>
+      </form>
+    </div>"""
+
+
+def _class_keys() -> list[str]:
+    try:
+        pipe = _load()["pipe"]
+    except Unavailable:
+        return []
+    return [k for name, keys in getattr(pipe, "_classes", {}).items()
+            if name.endswith("_expert") for k in keys]
+
+
+def labeled_page(sid: int, text: str) -> str:
+    return page(f'<div class="big">&#9989;</div><div><strong>Labeled: {html.escape(text)}</strong></div>'
+                f'<div class="meta">Sighting {sid}, kept on the box.</div>'
+                f'<button type="button" onclick="location.href=\'/identify\'">Identify another</button>'
+                f'<div class="meta"><a href="/identify/review" style="color:#9ad">All sightings</a></div>',
+                title="Identify")
+
+
+def review_page(rows: list[dict]) -> str:
+    """Every sighting, unlabeled first, each with its photos and a label form."""
+    if not rows:
+        return page('<h1>Sightings</h1><div class="meta">None yet. '
+                    '<a href="/identify" style="color:#9ad">Identify something</a>.</div>', title="Sightings")
+    items = []
+    for s in rows:
+        when = dt.datetime.fromtimestamp(s["ts"]).strftime("%b %-d, %-I:%M %p")
+        imgs = "".join(f'<img src="/identify/photo/{s["id"]}/{n}" loading="lazy" '
+                       f'style="width:48%;margin:4px 1% 0 0;border-radius:8px">'
+                       for n in range(1, len(s["photos"]) + 1))
+        items.append(f'<div class="due"><div class="meta">#{s["id"]} &middot; {when}</div>{imgs}'
+                     f'{_label_form(s["id"], s["result"], s["label"], species_list=False)}</div>')
+    todo = sum(1 for s in rows if not s["label"])
+    return page(f'<h1>Sightings</h1><div class="subject">{todo} to label</div>{_species_list()}{"".join(items)}',
+                title="Sightings")

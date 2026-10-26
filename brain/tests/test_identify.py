@@ -26,10 +26,16 @@ class FakeResult:
     energy: float | None = None
 
 
-def _jpeg() -> bytes:
+def _jpeg(size=(32, 32), gps=False) -> bytes:
     from PIL import Image
     buf = io.BytesIO()
-    Image.new("RGB", (32, 32), (40, 120, 40)).save(buf, format="JPEG")
+    img = Image.new("RGB", size, (40, 120, 40))
+    if gps:
+        exif = Image.Exif()
+        exif[0x8825] = {2: (40.0, 26.0, 46.0), 4: (79.0, 58.0, 56.0)}  # GPSInfo
+        img.save(buf, format="JPEG", exif=exif)
+    else:
+        img.save(buf, format="JPEG")
     return buf.getvalue()
 
 
@@ -50,7 +56,14 @@ def fake(monkeypatch):
 
 
 @pytest.fixture
-def client(db):
+def photo_dir(tmp_path, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "PHOTO_DIR", tmp_path / "photos")
+    return tmp_path / "photos"
+
+
+@pytest.fixture
+def client(db, photo_dir):
     fastapi_testclient = pytest.importorskip("fastapi.testclient")
     import hestia
     return fastapi_testclient.TestClient(hestia.app)
@@ -130,3 +143,69 @@ def test_real_models_never_call_a_hemlock_edible(monkeypatch):
     for photo in sorted(_VAL.iterdir())[:5]:
         r = identify.identify([photo.read_bytes()])
         assert r["safety"] not in ("SAFE", "CAUTION"), (photo.name, r)
+
+
+# ----- keeping sightings and labeling them ---------------------------------------------------
+
+LEAN = FakeResult(reason="need_second_photo", confidence=0.78,
+                  key_diff="Leaning motherwort, but an edible call needs a second photo")
+
+
+def test_the_page_keeps_a_sighting_upright_small_and_without_gps(client, fake, photo_dir):
+    from PIL import Image
+    import sightings_store
+    fake.result = LEAN
+    r = client.post("/identify", files={"file": ("a.jpg", _jpeg((3000, 2000), gps=True), "image/jpeg")})
+    assert "What was it really?" in r.text
+    assert "not sure (leaning motherwort)" in r.text
+    (s,) = sightings_store.recent()
+    assert s["label"] is None and s["result"]["reason"] == "need_second_photo"
+    kept = Image.open(photo_dir / s["photos"][0])
+    assert max(kept.size) == 1600
+    assert not kept.getexif().get_ifd(0x8825)
+
+
+def test_the_json_route_keeps_nothing(client, fake, photo_dir):
+    import sightings_store
+    client.post("/v1/identify", files={"file": ("a.jpg", _jpeg(), "image/jpeg")})
+    assert sightings_store.recent() == []
+    assert not photo_dir.exists()
+
+
+def test_a_label_sticks_and_a_relabel_replaces_it(client, fake):
+    import sightings_store
+    fake.result = LEAN
+    client.post("/identify", files={"file": ("a.jpg", _jpeg(), "image/jpeg")})
+    sid = sightings_store.recent()[0]["id"]
+    r = client.post(f"/identify/{sid}/label", data={"label": "  cilantro  "})
+    assert "Labeled: cilantro" in r.text
+    client.post(f"/identify/{sid}/label", data={"label": "parsley"})
+    assert sightings_store.get(sid)["label"] == "parsley"
+
+
+@pytest.mark.parametrize("sid, label", [(1, "   "), (999, "cilantro")])
+def test_an_empty_label_or_unknown_sighting_is_refused(client, fake, sid, label):
+    fake.result = LEAN
+    client.post("/identify", files={"file": ("a.jpg", _jpeg(), "image/jpeg")})
+    assert client.post(f"/identify/{sid}/label", data={"label": label}).status_code == 400
+
+
+def test_review_lists_unlabeled_first_and_serves_their_photos(client, fake):
+    import sightings_store
+    fake.result = LEAN
+    for _ in range(2):
+        client.post("/identify", files={"file": ("a.jpg", _jpeg(), "image/jpeg")})
+    sightings_store.label(1, "cilantro")
+    page = client.get("/identify/review").text
+    assert "1 to label" in page
+    assert page.index("#2 &middot;") < page.index("#1 &middot;")
+    assert client.get("/identify/photo/2/1").headers["content-type"] == "image/jpeg"
+    assert client.get("/identify/photo/2/2").status_code == 404
+
+
+def test_a_photo_path_outside_the_kept_folder_is_never_served(client, db, photo_dir):
+    import sightings_store
+    (photo_dir / "pets").mkdir(parents=True)
+    (photo_dir / "pets" / "x.jpg").write_bytes(_jpeg())
+    sid = sightings_store.add(["identify/../pets/x.jpg"], {})
+    assert client.get(f"/identify/photo/{sid}/1").status_code == 404

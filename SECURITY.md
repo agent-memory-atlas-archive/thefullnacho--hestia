@@ -72,9 +72,11 @@ goes, which is an operator-side choice; the brain itself still calls nothing out
 - The **NFC capture endpoints** (`GET /nfc`, `POST /nfc/log`) require a `token` query/form param
   matching `NFC_TOKEN`. This path deliberately bypasses the model entirely — see `brain/nfc.py` —
   so a scanned tag's write can't be silently swallowed the way a chat-agent tool call can be.
-- The **species ID endpoints** (`GET`/`POST /identify`, `POST /v1/identify`) take no token, like
-  `/app`: they are read-only. A photo is classified in memory by the forager_ml models on CPU and
-  the answer is returned; nothing is written and nothing leaves the box. See `brain/identify.py`.
+- The **species ID endpoints** (`/identify`, `/identify/review`, `POST /v1/identify`) take no
+  token, like `/app`. Photos are classified on CPU by the forager_ml models and nothing leaves the
+  box. The page keeps each identification as a sighting (photos re-encoded with EXIF, and so GPS,
+  stripped, under `data/photos/identify`) for a person to label; `POST /v1/identify` keeps
+  nothing. Photos are served back only from that folder. See `brain/identify.py`.
 
 ## Data
 
