@@ -218,3 +218,49 @@ today minus LED ring line            58.7%   17
 `heldout_2026-07-06.txt` (morning single pass, both models),
 `heldout_2026-07-06_ablation.txt` (4-variant ablation),
 `heldout_2026-07-06_k5.txt` (K=5, both models).
+
+# Coding replay: Qwen3.8-Flash-Next Q2_0 via strata (2026-10-25)
+
+`codebench.py` replays eight small, recent hestia fixes as coding tasks. Each run starts
+from the commit's parent with the commit's tests in place; the model gets the commit
+message, the test diff, and the full source file(s), and answers in SEARCH/REPLACE blocks.
+Temperature 0, one pass. A task counts as clean only when the whole suite passes, not just
+the commit's own tests.
+
+Served by strata across the 5080 and 4060 Ti (64k context), OpenAI-compatible endpoint.
+
+```
+commit   task                                         verdict    secs  out tok
+44ffd37  shopping: dedupe within one request          clean        49    2.2k
+f6865fb  reminder: 'tonight at 9' is PM               clean       173   10.0k
+8061f6a  pest-watch: no window without emergence      clean        33    0.8k
+2aca3e0  reminder: normalise iso to local time        clean        51    2.0k
+8a01e84  context budget: tokens as bytes / 3          targeted    136    7.0k
+eb3c1b7  goals: unreadable date leaves step undated   clean       200   10.7k
+7ff4677  search: fetch public hosts only, no redirect clean       130   10.0k
+fccacdb  status: tolerate [N/A] gpu fields            clean       130   10.4k
+```
+
+Targeted 8/8, full suite clean 7/8. Decode held about 55 tok/s; most output tokens are
+thinking before a short edit, so a task costs one to three minutes.
+
+## Findings
+
+- **The one miss is the sub-agent failure mode.** For 8a01e84 the model changed what
+  `estimate()` returns (bytes to tokens) instead of adding a new function. Its own tests
+  passed; `threads_store` also budgets history with `estimate()` in bytes, so the history
+  cap silently loosened about 3x and `test_threads` failed. The real commit added `tokens()`
+  and left `estimate()` alone. A local coding sub-agent needs the full suite as its gate.
+- **The security fix was sound but weaker in shape.** For 7ff4677 it refused private,
+  loopback and CGNAT addresses by enumerating ranges, where the real commit allows only
+  `is_global`. It also left the docstring and SECURITY.md untouched.
+- **Every edit applied.** No SEARCH block missed or matched twice.
+- Same session, key-match probe (`brain/eval_keymatch.py`, K=5, HESTIA_BACKEND=openai): 93%,
+  misses only on passive capture (answered in prose instead of saving).
+
+## Caveats
+
+One-shot and spoon-fed: the prompt names the file and includes the passing tests. A real
+sub-agent also has to find the files and work across turns; that is untested. Strata held
+27 of 30 GB RAM and all swap with the 4060 Ti on a PCIe x1 link, which made the box
+unusable for anything else while it served.
