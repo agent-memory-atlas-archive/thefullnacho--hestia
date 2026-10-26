@@ -14,6 +14,7 @@ streaming clients receive incremental final synthesis when tools are disabled.
 from __future__ import annotations
 
 import asyncio
+import html
 import io
 import json
 import os
@@ -47,6 +48,7 @@ import operation_store  # noqa: E402
 from tool_contract import ToolResult, mutation, receipt, validate, read_call_from_text
 
 import memory_store  # noqa: E402
+import identify  # noqa: E402
 import nfc  # noqa: E402
 import whelp_form  # noqa: E402
 import board  # noqa: E402
@@ -1761,6 +1763,53 @@ async def nfc_photo(request: Request):
         _file_photo, await upload.read(), upload.filename or "", [subject], "garden", "")
     body, status = nfc.photo_result(subject, payload, status)
     return HTMLResponse(body, status_code=status)
+
+
+# Species ID (see identify.py): the forager_ml classifiers, never the model. Read-only, so it
+# sits behind the same network boundary as /app with no token of its own.
+async def _identify_photos(request: Request) -> tuple[list[bytes], str]:
+    form = await request.form()
+    photos = []
+    for f in form.getlist("file"):
+        if isinstance(f, str):
+            continue
+        data = await f.read()
+        if len(data) > _MAX_PHOTO_BYTES:
+            return [], "file too large"
+        if data:  # an untouched optional picker still posts an empty part
+            photos.append(data)
+    return photos, ""
+
+
+async def _identify(request: Request) -> tuple[dict, int]:
+    photos, err = await _identify_photos(request)
+    if err:
+        return {"error": err}, 413
+    try:
+        return await asyncio.to_thread(identify.identify, photos), 200
+    except identify.Unavailable as e:
+        return {"error": f"identify is not set up: {e}"}, 503
+    except ValueError as e:
+        return {"error": str(e)}, 400
+
+
+@app.get("/identify")
+async def identify_form():
+    return HTMLResponse(identify.form_page())
+
+
+@app.post("/identify")
+async def identify_page(request: Request):
+    result, status = await _identify(request)
+    if status != 200:
+        return HTMLResponse(nfc.error_page(html.escape(result["error"]), str(status)), status_code=status)
+    return HTMLResponse(identify.result_page(result))
+
+
+@app.post("/v1/identify")
+async def identify_json(request: Request):
+    result, status = await _identify(request)
+    return JSONResponse(status_code=status, content=result)
 
 
 # --- Voice loop (browser mic -> brain -> Wyoming services) -------------------------------------

@@ -121,6 +121,12 @@ A small service. Probably a few hundred lines + tool definitions, not a platform
 > **"Tailored to my home" ≠ fine-tuning.** It's base model + system prompt +
 > memory + the right tools. You almost certainly never train anything.
 
+> **Seeing is a classifier's job.** A photo of a plant, berry or mushroom goes to the
+> forager_ml router and its one matching expert (`brain/identify.py`), not to the model.
+> Measured 2026-10-25: the resident Gemma 4 scored 16 to 37% on those species and named
+> 14 of 130 deadly photos as safe ones; the experts score 88 to 96% with none. The model's
+> part, when it gets one, is explaining the result.
+
 ---
 
 ## Memory (the moat)
