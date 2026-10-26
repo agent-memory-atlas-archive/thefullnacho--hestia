@@ -130,6 +130,11 @@ def photo_path(sid: int, n: int) -> Path | None:
     return path if path.is_relative_to(root) and path.is_file() else None
 
 
+# The app's manifest scope is "/", so these pages open inside the installed app, which has no
+# back button. Every page carries its own way back.
+_BACK = '<div class="meta" style="margin:-8px 0 14px"><a href="/app" style="color:#9ad">&larr; Hestia</a></div>'
+
+
 def _name(key: str) -> str:
     return key.replace("_", " ").removesuffix(" toxic").removesuffix(" deadly").capitalize()
 
@@ -159,7 +164,7 @@ def _form(note: str = "") -> str:
 
 
 def form_page() -> str:
-    return page(f"<h1>What is this?</h1>"
+    return page(f"{_BACK}<h1>What is this?</h1>"
                 f'<div class="subject">Berries, mushrooms and wild plants</div>{_form()}'
                 f'<div class="meta"><a href="/identify/review" style="color:#9ad">Sightings to label</a></div>',
                 title="Identify")
@@ -188,7 +193,7 @@ def result_page(r: dict) -> str:
                 f'<div class="warn">Check the lookalike difference yourself before eating.</div>')
     labeling = _label_form(r["sighting"], r) if r.get("sighting") else ""
     retry = _form('<div class="due"></div>')
-    return page(f"<h1>Identify</h1>{body}{labeling}{retry}", title="Identify")
+    return page(f"{_BACK}<h1>Identify</h1>{body}{labeling}{retry}", title="Identify")
 
 
 def _guess(r: dict) -> str:
@@ -229,7 +234,7 @@ def _class_keys() -> list[str]:
 
 
 def labeled_page(sid: int, text: str) -> str:
-    return page(f'<div class="big">&#9989;</div><div><strong>Labeled: {html.escape(text)}</strong></div>'
+    return page(f'{_BACK}<div class="big">&#9989;</div><div><strong>Labeled: {html.escape(text)}</strong></div>'
                 f'<div class="meta">Sighting {sid}, kept on the box.</div>'
                 f'<button type="button" onclick="location.href=\'/identify\'">Identify another</button>'
                 f'<div class="meta"><a href="/identify/review" style="color:#9ad">All sightings</a></div>',
@@ -239,7 +244,7 @@ def labeled_page(sid: int, text: str) -> str:
 def review_page(rows: list[dict]) -> str:
     """Every sighting, unlabeled first, each with its photos and a label form."""
     if not rows:
-        return page('<h1>Sightings</h1><div class="meta">None yet. '
+        return page(f'{_BACK}<h1>Sightings</h1><div class="meta">None yet. '
                     '<a href="/identify" style="color:#9ad">Identify something</a>.</div>', title="Sightings")
     items = []
     for s in rows:
@@ -250,5 +255,5 @@ def review_page(rows: list[dict]) -> str:
         items.append(f'<div class="due"><div class="meta">#{s["id"]} &middot; {when}</div>{imgs}'
                      f'{_label_form(s["id"], s["result"], s["label"], species_list=False)}</div>')
     todo = sum(1 for s in rows if not s["label"])
-    return page(f'<h1>Sightings</h1><div class="subject">{todo} to label</div>{_species_list()}{"".join(items)}',
+    return page(f'{_BACK}<h1>Sightings</h1><div class="subject">{todo} to label</div>{_species_list()}{"".join(items)}',
                 title="Sightings")

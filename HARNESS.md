@@ -181,7 +181,8 @@ served by `GET /app/{name}` and cached network-first by the service worker. No b
   and the day's picks (below).
 
 The menu also links the no-model capture pages. `/queue` opens read-only; `/whelp` and the
-queue's Done buttons need the NFC token. The camera button posts to `/ingest/photo` with the
+queue's Done buttons need the NFC token. Identify (`/identify`) takes no token and its pages link back to
+the app, since the app's scope covers them and a standalone app has no back button. The camera button posts to `/ingest/photo` with the
 ingest token. The app asks for each token once, keeps it in that phone's localStorage, and
 forgets it when the brain answers 401. Nothing about who may write changes.
 

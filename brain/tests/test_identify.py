@@ -209,3 +209,18 @@ def test_a_photo_path_outside_the_kept_folder_is_never_served(client, db, photo_
     (photo_dir / "pets" / "x.jpg").write_bytes(_jpeg())
     sid = sightings_store.add(["identify/../pets/x.jpg"], {})
     assert client.get(f"/identify/photo/{sid}/1").status_code == 404
+
+
+def test_the_app_menu_links_identify_without_a_token():
+    shell = (Path(__file__).resolve().parents[2] / "clients/chat.html").read_text()
+    (line,) = [l for l in shell.splitlines() if 'href="/identify"' in l]
+    assert "data-capture" not in line  # capture links get the NFC token appended
+
+
+def test_every_identify_page_links_back_to_the_app(client, fake):
+    fake.result = LEAN
+    pages = [client.get("/identify").text, client.get("/identify/review").text,
+             client.post("/identify", files={"file": ("a.jpg", _jpeg(), "image/jpeg")}).text,
+             client.post("/identify/1/label", data={"label": "cilantro"}).text,
+             client.get("/identify/review").text]
+    assert all('href="/app"' in p for p in pages)
