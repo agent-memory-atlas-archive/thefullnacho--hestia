@@ -1,6 +1,7 @@
 """Synthetic fixtures and shared production entry points for safe local model evaluation."""
 from __future__ import annotations
 
+import asyncio
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,6 +15,14 @@ with patch.object(config, "load_secrets"):
     import memory_store
     import records_store
     import tools
+
+# One loop for the whole run: the brain's httpx clients are module-level, and a pooled
+# connection reused after asyncio.run() closed its loop fails with "Event loop is closed".
+_loop = asyncio.new_event_loop()
+
+
+def run(coro):
+    return _loop.run_until_complete(coro)
 
 
 @contextmanager

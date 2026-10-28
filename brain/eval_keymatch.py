@@ -22,7 +22,6 @@ Usage:
 """
 from __future__ import annotations
 
-import asyncio
 import os
 import sys
 import time
@@ -31,8 +30,7 @@ import httpx
 
 import config  # noqa: E402 — puts brain/ on sys.path
 
-from eval_support import first_message, fixtures, hestia
-import asyncio
+from eval_support import first_message, run, fixtures, hestia
 
 OLLAMA = "http://127.0.0.1:11434"
 REPEATS = int(os.environ.get("EVAL_REPEATS", "5"))
@@ -78,7 +76,7 @@ CASES = [
 
 def first_tool(model: str, prompt: str) -> tuple[str, int]:
     with fixtures():
-        msg, offered = asyncio.run(first_message(model, prompt))
+        msg, offered = run(first_message(model, prompt))
     calls = msg.get("tool_calls") or []
     return (calls[0].get("function", {}).get("name", "?") if calls else "∅:final", offered)
 

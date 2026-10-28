@@ -26,8 +26,7 @@ import httpx
 
 import config  # noqa: E402
 
-from eval_support import first_message, fixtures, hestia
-import asyncio
+from eval_support import first_message, run, fixtures, hestia
 
 OLLAMA = "http://127.0.0.1:11434"
 REPEATS = int(os.environ.get("EVAL_REPEATS", "1"))
@@ -47,7 +46,7 @@ def load_cases() -> list[dict]:
 
 def fire(model: str, prompt: str) -> tuple[str, dict]:
     with fixtures():
-        msg, _ = asyncio.run(first_message(model, prompt))
+        msg, _ = run(first_message(model, prompt))
     calls = msg.get("tool_calls") or []
     if not calls:
         return "∅", {}
