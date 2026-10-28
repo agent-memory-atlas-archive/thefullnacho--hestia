@@ -296,3 +296,41 @@ The experts score 0.0 on that measure.
 
 Ten photos a class, one pass at temperature 0. The expert numbers are on the val split
 they were selected on, so they read slightly high.
+
+# Tool selection: LFM3-1.7B vs Gemma 4 12B (2026-10-27)
+
+Liquid AI's LFM3 family landed the same day, with llama.cpp support from b11938. Served
+LFM3-1.7B Q8_0 from llama.cpp b11946 on the 4060 Ti (2.4 GB at 32k context) through
+`HESTIA_BACKEND=openai`, against the resident `gemma4:12b` on Ollama. Same production
+prompt and tool scoping, K=5 at the brain's temperature 0.3, nothing dispatched.
+
+```
+                                 lfm3-1.7b       gemma4:12b
+key-match, reasoning on          87%  171s           -
+key-match, reasoning off         100%  37s        100%  53s
+held-out: fired home             97.1%            96.8%
+held-out: action right           86.0%            96.8%
+held-out: entity right           66.3%            86.7%
+held-out: EXACT                  66.3%  189s      86.7%  268s
+```
+
+## Findings
+
+- **Picking the tool is solved at 1.7B; filling it in is not.** Key-match ties at 100%,
+  but on the held-out home calls the 1.7B gets the action wrong on one in seven and the
+  entity wrong on one in three. Typical miss: "switch off the outside" became `get_state`
+  with no entity.
+- **Reasoning is on by default and costs more than it buys here.** The openai backend
+  does not pass the brain's `think: false`, so LFM3 reasoned on every turn and every
+  key-match miss was `finish_reason: length`: it reached the right tool and ran out of
+  output tokens before calling it. `--reasoning off` on the server fixed all of them.
+- **Tool calls parse cleanly.** LFM3 emits XML tool calls; llama-server with `--jinja`
+  and the model's own `chat_template.jinja` returns standard `tool_calls` with JSON
+  arguments.
+
+## Caveats
+
+Key-match is narrow: scoping hands most of its cases one or two tools, so it saturates.
+Held-out grades only home actuation. Both models were graded against the same gold, but
+no multi-turn, passive capture, or conversation quality is measured here. Model license
+is the LFM Open License v1.0, free for commercial use only under $10M annual revenue.
