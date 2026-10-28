@@ -7,6 +7,41 @@ is public. Those live in the operator's private notes.
 
 ---
 
+## 2026-10-25 to 10-27 - species ID live, photos backed up, Hestia Lite end to end on a Pi 5
+
+- **Species ID** (`/identify`, in the app menu): the forager_ml router and experts on CPU, loaded
+  in place from the field station checkout with its two-photo rule, no model. Every identified
+  photo is kept as a sighting (EXIF stripped) for a person to label at `/identify/review`: the
+  local in-field dataset. Decided: it stays local; a nightly export is undecided. Measured why:
+  Gemma 4 scored 16 to 37% on the experts' val photos and named 14 of 130 deadly ones safe
+  (`benchmarks/vision_id.py`, RESULTS.md). First real test: a cilantro read as motherwort 78%,
+  withheld by the two-photo rule; the energy check would not have caught it, so the experts need
+  an "other plant" class trained on real negatives.
+- **Photos backed up** (they never had been): one rolling copy on hl-relay each night, pulled
+  into the off-site restic repo as its own snapshot series. Verified on its first night.
+- **Hestia Lite end to end** (`exp/small-router`, `benchmarks/lite-e2e/`): speech to text, router,
+  fine-tuned caller, said-words gate, code-built reply, speech, all on one board, actions a dry
+  run. Pi 4: 4.6 s median to the reply in 1.57 GB. Same card in a Pi 5: **1.6 s median, 1.5 GB**.
+  The operator's real voice: 13 of 16 actions right; both misses start in speech to text (lost
+  apostrophes, household words). The caller runs in llama.cpp with a cached prompt per domain,
+  EmbeddingGemma as 8-bit (same routing as 16-bit on the full benchmark), no Ollama.
+- **Direction, not decided:** Lite as a provisioned tailnet device that hands deeper questions to
+  the brain; on a UPS it keeps the house limited but not down when the GPU box is off, which
+  argues for moving the deterministic core to the always-on box. Optional cloud connectors would
+  need a decision against "nothing phones home". Pilot idea: sponsor about 5 units.
+- **Next concrete action (a session):** with the mic and speaker on the Pi, run Lite live from the
+  microphone; then the first refinements (apostrophe-less phrasing for the caller, a household
+  word list for speech to text, speaking the reply sentence by sentence).
+
+[non-production] Plug the spare USB mic and a speaker into the Pi 5 (queued).
+[non-production] Put the Lite Pi on the tailnet (queued).
+[non-production] Correct post #04's round-trip figure (queued).
+[non-production] Dawn's 30 commands, if she's willing (queued).
+[non-production] Re-shoot the aerogarden cilantro at /identify and label it "cilantro" (queued).
+[non-production] Look for a 2nd-gen Echo Dot for the EchoMuse satellite test (queued by the hub).
+
+---
+
 ## 2026-10-25 (evening) - strata trial: Qwen3.8-Flash-Next Q2_0 as a local coding sub-agent
 
 - **Trial:** the operator took Gemma down and served Qwen3.8-Flash-Next Q2_0 through strata across
